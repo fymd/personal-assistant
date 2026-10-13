@@ -25,14 +25,25 @@
 
 采用 **Feature-first** 目录结构：
 
-- `core/`：主题（苹果风格）、路由、网络层、本地存储、工具类
+- `core/`：主题系统、路由、网络层、本地存储、工具类
 - `features/`：按业务模块划分（auth / memo / ai / ops / profile）
 - 每个 feature 内部可再分 `data` / `domain` / `presentation`（轻量 Clean Architecture）
 
-UI 原则：
-- 极简、大量留白、系统级圆角与阴影
-- 支持深色模式（跟随系统）
-- 使用 Material 3 + 自定义 Theme 模拟苹果质感，或 Cupertino 组件混合
+### UI 主题系统
+
+支持多主题，用户可自由切换，偏好同步到账号：
+
+| 主题 | 默认 | 特点 |
+|------|------|------|
+| **Notion** | ✅ | 结构化、卡片分明、信息密度适中、内容优先 |
+| Apple Minimal | | 极简、大量留白、系统级质感 |
+| Linear Dark | | 深色、高对比、锋利、专业工具感 |
+| Craft / Bear | | 柔和、字体质感强、编辑气质 |
+
+实现方式：
+- `core/theme/` 下定义多套 `ThemeData` + 颜色 token
+- 使用 Riverpod / Provider 管理当前主题
+- 本地持久化 + 登录后同步到后端用户偏好
 
 ## 后端（Go）
 
@@ -41,6 +52,7 @@ UI 原则：
 - `pkg/`：可复用公共库
 - 使用标准库 + 少量成熟依赖（如 chi/gin、gorm 或 sqlx、jwt 等）
 - 接口设计预留会员订阅相关路由与中间件
+- 用户表预留 `theme_preference` 字段
 
 ## 认证流程（手机号 + 验证码）
 
