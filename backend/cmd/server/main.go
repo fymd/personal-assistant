@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/fymd/personal-assistant/backend/internal/auth"
+	"github.com/fymd/personal-assistant/backend/internal/memo"
 )
 
 func main() {
@@ -23,14 +24,16 @@ func main() {
 	mux.HandleFunc("/api/v1/auth/send-code", authHandler.SendCode)
 	mux.HandleFunc("/api/v1/auth/login", authHandler.Login)
 
-	// TODO: 后续挂载
-	// - /api/v1/memos
-	// - /api/v1/ops/scans
-	// - /api/v1/membership
+	// Memos
+	memoStore := memo.NewStore()
+	memoHandler := memo.NewHandler(memoStore, authSvc)
+	mux.Handle("/api/v1/memos", memoHandler)
+	mux.Handle("/api/v1/memos/", memoHandler)
 
 	addr := ":8080"
 	log.Printf("Personal Assistant backend starting on %s", addr)
-	log.Printf("Auth endpoints: POST /api/v1/auth/send-code , POST /api/v1/auth/login")
+	log.Printf("Auth:  POST /api/v1/auth/send-code , POST /api/v1/auth/login")
+	log.Printf("Memos: GET/POST /api/v1/memos , GET/PUT/DELETE /api/v1/memos/{id}")
 	log.Printf("Dev verification code is always 123456")
 
 	if err := http.ListenAndServe(addr, corsMiddleware(mux)); err != nil {
@@ -38,11 +41,10 @@ func main() {
 	}
 }
 
-// 简易 CORS，方便本地 Flutter / Web 调试
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
