@@ -41,8 +41,6 @@ func (h *Handler) phoneFromRequest(r *http.Request) (string, bool) {
 	return h.authSvc.PhoneByToken(parts[1])
 }
 
-// ServeHTTP 统一入口，按 path + method 分发
-// 挂载到 /api/v1/memos 和 /api/v1/memos/
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	phone, ok := h.phoneFromRequest(r)
 	if !ok {
@@ -53,7 +51,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/memos")
 	path = strings.Trim(path, "/")
 
-	// /api/v1/memos 或 /api/v1/memos/
 	if path == "" {
 		switch r.Method {
 		case http.MethodGet:
@@ -66,7 +63,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// /api/v1/memos/{id}/complete
 	if strings.HasSuffix(path, "/complete") {
 		id := strings.TrimSuffix(path, "/complete")
 		id = strings.Trim(id, "/")
@@ -76,7 +72,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// /api/v1/memos/{id}
 	id := path
 	switch r.Method {
 	case http.MethodGet:
@@ -91,10 +86,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request, phone string) {
-	filter := r.URL.Query().Get("filter") // all | uncompleted | completed | starred
-	list := h.store.List(phone, filter)
-	if list == nil {
-		list = []*Memo{}
+	filter := r.URL.Query().Get("filter")
+	list, err := h.store.List(phone, filter)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, apiResponse{Code: 500, Message: err.Error()})
+		return
 	}
 	writeJSON(w, http.StatusOK, apiResponse{Code: 0, Message: "ok", Data: list})
 }
