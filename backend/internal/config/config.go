@@ -4,13 +4,17 @@ import (
 	"os"
 )
 
-// Config 应用配置（后续可扩展为从环境变量 / 配置文件加载）
+// Config 应用配置
 type Config struct {
-	ServerPort string
-	DBPath     string
-	JWTSecret  string
-	// SMS 相关（开发阶段可 mock）
+	ServerPort  string
+	DBPath      string
+	JWTSecret   string
 	SMSProvider string
+
+	// AI（OpenAI 兼容接口）
+	AIAPIKey  string
+	AIBaseURL string
+	AIModel   string
 }
 
 func Load() *Config {
@@ -19,6 +23,10 @@ func Load() *Config {
 		DBPath:      getEnv("DB_PATH", "./data/assistant.db"),
 		JWTSecret:   getEnv("JWT_SECRET", "change-me-in-production"),
 		SMSProvider: getEnv("SMS_PROVIDER", "mock"),
+
+		AIAPIKey:  getEnv("AI_API_KEY", ""),
+		AIBaseURL: getEnv("AI_BASE_URL", "https://api.openai.com/v1"),
+		AIModel:   getEnv("AI_MODEL", "gpt-4o-mini"),
 	}
 }
 
