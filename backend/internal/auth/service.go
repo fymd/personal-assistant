@@ -2,17 +2,18 @@ package auth
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
 )
 
-// Service 处理验证码与登录逻辑（当前为内存 mock，后续可换真实短信 + DB）
+// Service 验证码内存 + session SQLite 持久化
 type Service struct {
-	mu     sync.RWMutex
-	codes  map[string]codeEntry // phone -> entry
-	tokens map[string]string    // token -> phone
+	db    *sql.DB
+	mu    sync.RWMutex
+	codes map[string]codeEntry // phone -> entry（验证码仍内存，短时有效）
 }
 
 type codeEntry struct {
@@ -20,14 +21,13 @@ type codeEntry struct {
 	ExpiresAt time.Time
 }
 
-func NewService() *Service {
+func NewService(db *sql.DB) *Service {
 	return &Service{
-		codes:  make(map[string]codeEntry),
-		tokens: make(map[string]string),
+		db:    db,
+		codes: make(map[string]codeEntry),
 	}
 }
 
-// SendCode 生成并「发送」验证码（开发环境固定返回 123456）
 func (s *Service) SendCode(phone string) (string, error) {
 	if len(phone) < 11 {
 		return "", fmt.Errorf("invalid phone")
@@ -46,7 +46,6 @@ func (s *Service) SendCode(phone string) (string, error) {
 	return code, nil
 }
 
-// Login 校验验证码并返回 token
 func (s *Service) Login(phone, code string) (string, error) {
 	s.mu.RLock()
 	entry, ok := s.codes[phone]
@@ -66,24 +65,30 @@ func (s *Service) Login(phone, code string) (string, error) {
 	delete(s.codes, phone)
 	s.mu.Unlock()
 
+	// 确保用户存在
+	if _, err := s.db.Exec(`INSERT OR IGNORE INTO users (phone) VALUES (?)`, phone); err != nil {
+		return "", err
+	}
+
 	token, err := generateToken()
 	if err != nil {
 		return "", err
 	}
 
-	s.mu.Lock()
-	s.tokens[token] = phone
-	s.mu.Unlock()
+	if _, err := s.db.Exec(`INSERT INTO sessions (token, phone) VALUES (?, ?)`, token, phone); err != nil {
+		return "", err
+	}
 
 	return token, nil
 }
 
-// PhoneByToken 根据 token 查手机号
 func (s *Service) PhoneByToken(token string) (string, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	phone, ok := s.tokens[token]
-	return phone, ok
+	var phone string
+	err := s.db.QueryRow(`SELECT phone FROM sessions WHERE token = ?`, token).Scan(&phone)
+	if err != nil {
+		return "", false
+	}
+	return phone, true
 }
 
 func generateToken() (string, error) {
