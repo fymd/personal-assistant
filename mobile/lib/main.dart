@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/theme_provider.dart';
 import 'core/theme/theme_type.dart';
+import 'features/auth/presentation/auth_provider.dart';
+import 'features/auth/presentation/login_page.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,28 +30,29 @@ class PersonalAssistantApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = ref.watch(themeDataProvider);
-    final themeType = ref.watch(themeTypeProvider);
+    final auth = ref.watch(authStateProvider);
 
     return MaterialApp(
       title: 'Personal Assistant',
       debugShowCheckedModeBanner: false,
       theme: theme,
-      // 当前主题已包含深浅，不再额外用 themeMode 切换
-      home: ThemeDemoPage(currentType: themeType),
+      home: auth.isAuthenticated
+          ? HomePage(phone: auth.phone ?? '')
+          : const LoginPage(),
     );
   }
 }
 
-/// 临时演示页：展示当前主题 + 快速切换
-/// 后续会被正式首页替换
-class ThemeDemoPage extends ConsumerWidget {
-  final AppThemeType currentType;
+/// 临时首页（登录后进入），后续替换为正式备忘录页
+class HomePage extends ConsumerWidget {
+  final String phone;
 
-  const ThemeDemoPage({super.key, required this.currentType});
+  const HomePage({super.key, required this.phone});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = ref.watch(appColorsProvider);
+    final themeType = ref.watch(themeTypeProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -58,14 +61,20 @@ class ThemeDemoPage extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.palette_outlined),
             tooltip: '切换主题',
-            onPressed: () => _showThemePicker(context, ref),
+            onPressed: () => _showThemePicker(context, ref, themeType),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: '退出登录',
+            onPressed: () {
+              ref.read(authStateProvider.notifier).logout();
+            },
           ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // 当前主题提示
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -77,23 +86,20 @@ class ThemeDemoPage extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '当前主题：${currentType.displayName}',
+                  '已登录：$phone',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  currentType.description,
+                  '当前主题：${themeType.displayName}',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
             ),
           ),
           const SizedBox(height: 24),
-
-          // 模拟备忘录卡片（Notion 风格预览）
           Text('示例备忘录', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
-
           _MemoCard(
             title: '产品灵感收集',
             subtitle: '今天 · 09:30',
@@ -120,13 +126,6 @@ class ThemeDemoPage extends ConsumerWidget {
             completed: true,
             colors: colors,
           ),
-
-          const SizedBox(height: 32),
-          Text(
-            '点击右上角调色盘可切换主题',
-            style: Theme.of(context).textTheme.bodySmall,
-            textAlign: TextAlign.center,
-          ),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -141,7 +140,7 @@ class ThemeDemoPage extends ConsumerWidget {
     );
   }
 
-  void _showThemePicker(BuildContext context, WidgetRef ref) {
+  void _showThemePicker(BuildContext context, WidgetRef ref, AppThemeType currentType) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -162,19 +161,14 @@ class ThemeDemoPage extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              Text(
-                '选择主题',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+              Text('选择主题', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
               ...AppThemeType.values.map((type) {
                 final selected = type == currentType;
                 return ListTile(
                   leading: Icon(
                     selected ? Icons.check_circle : Icons.circle_outlined,
-                    color: selected
-                        ? Theme.of(context).colorScheme.primary
-                        : null,
+                    color: selected ? Theme.of(context).colorScheme.primary : null,
                   ),
                   title: Text(type.displayName),
                   subtitle: Text(type.description),
@@ -221,7 +215,6 @@ class _MemoCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // 左侧色块图标
           Container(
             width: 36,
             height: 36,
@@ -252,10 +245,7 @@ class _MemoCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.secondaryText,
-                  ),
+                  style: TextStyle(fontSize: 12, color: colors.secondaryText),
                 ),
                 const SizedBox(height: 4),
                 Container(
