@@ -4,38 +4,26 @@ import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/theme_provider.dart';
-import '../../../core/theme/theme_type.dart';
-import '../../auth/presentation/auth_provider.dart';
 import '../data/memo_model.dart';
 import 'memo_detail_page.dart';
 import 'memo_provider.dart';
 
 class MemoListPage extends ConsumerWidget {
-  const MemoListPage({super.key});
+  /// 是否显示底部导航（嵌入 MainShell 时为 false）
+  final bool showBottomBar;
+
+  const MemoListPage({super.key, this.showBottomBar = true});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = ref.watch(appColorsProvider);
     final filter = ref.watch(memoFilterProvider);
     final memosAsync = ref.watch(memoListProvider);
-    final themeType = ref.watch(themeTypeProvider);
 
     return Scaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
         title: const Text('备忘录'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.palette_outlined),
-            tooltip: '切换主题',
-            onPressed: () => _showThemePicker(context, ref, themeType),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: '退出登录',
-            onPressed: () => ref.read(authStateProvider.notifier).logout(),
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -81,8 +69,8 @@ class MemoListPage extends ConsumerWidget {
                     Text('加载失败', style: TextStyle(color: colors.danger)),
                     const SizedBox(height: 8),
                     Text('$e',
-                        style:
-                            TextStyle(color: colors.secondaryText, fontSize: 12)),
+                        style: TextStyle(
+                            color: colors.secondaryText, fontSize: 12)),
                     const SizedBox(height: 12),
                     TextButton(
                       onPressed: () =>
@@ -150,19 +138,21 @@ class MemoListPage extends ConsumerWidget {
         elevation: 2,
         child: const Icon(Icons.add),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,
-        items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined), label: '首页'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.auto_awesome), label: 'AI'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.grid_view_rounded), label: '工具'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline), label: '我的'),
-        ],
-      ),
+      bottomNavigationBar: showBottomBar
+          ? BottomNavigationBar(
+              currentIndex: 0,
+              items: const [
+                BottomNavigationBarItem(
+                    icon: Icon(Icons.home_outlined), label: '首页'),
+                BottomNavigationBarItem(
+                    icon: Icon(Icons.auto_awesome), label: 'AI'),
+                BottomNavigationBarItem(
+                    icon: Icon(Icons.grid_view_rounded), label: '工具'),
+                BottomNavigationBarItem(
+                    icon: Icon(Icons.person_outline), label: '我的'),
+              ],
+            )
+          : null,
     );
   }
 
@@ -268,55 +258,6 @@ class MemoListPage extends ConsumerWidget {
           ),
         ],
       ),
-    );
-  }
-
-  void _showThemePicker(
-      BuildContext context, WidgetRef ref, AppThemeType currentType) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text('选择主题', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              ...AppThemeType.values.map((type) {
-                final selected = type == currentType;
-                return ListTile(
-                  leading: Icon(
-                    selected ? Icons.check_circle : Icons.circle_outlined,
-                    color: selected
-                        ? Theme.of(context).colorScheme.primary
-                        : null,
-                  ),
-                  title: Text(type.displayName),
-                  subtitle: Text(type.description),
-                  onTap: () {
-                    ref.read(themeTypeProvider.notifier).setTheme(type);
-                    Navigator.pop(ctx);
-                  },
-                );
-              }),
-              const SizedBox(height: 16),
-            ],
-          ),
-        );
-      },
     );
   }
 }
