@@ -10,8 +10,9 @@ import (
 
 // Service 处理验证码与登录逻辑（当前为内存 mock，后续可换真实短信 + DB）
 type Service struct {
-	mu    sync.RWMutex
-	codes map[string]codeEntry // phone -> entry
+	mu     sync.RWMutex
+	codes  map[string]codeEntry // phone -> entry
+	tokens map[string]string    // token -> phone
 }
 
 type codeEntry struct {
@@ -21,17 +22,17 @@ type codeEntry struct {
 
 func NewService() *Service {
 	return &Service{
-		codes: make(map[string]codeEntry),
+		codes:  make(map[string]codeEntry),
+		tokens: make(map[string]string),
 	}
 }
 
-// SendCode 生成并「发送」验证码（开发环境固定返回 123456，方便测试）
+// SendCode 生成并「发送」验证码（开发环境固定返回 123456）
 func (s *Service) SendCode(phone string) (string, error) {
 	if len(phone) < 11 {
 		return "", fmt.Errorf("invalid phone")
 	}
 
-	// 开发阶段固定验证码，方便联调
 	code := "123456"
 
 	s.mu.Lock()
@@ -41,7 +42,6 @@ func (s *Service) SendCode(phone string) (string, error) {
 	}
 	s.mu.Unlock()
 
-	// 真实环境这里调用短信服务商
 	fmt.Printf("[MOCK SMS] phone=%s code=%s\n", phone, code)
 	return code, nil
 }
@@ -62,17 +62,28 @@ func (s *Service) Login(phone, code string) (string, error) {
 		return "", fmt.Errorf("验证码错误")
 	}
 
-	// 清除已使用验证码
 	s.mu.Lock()
 	delete(s.codes, phone)
 	s.mu.Unlock()
 
-	// 生成简易 token（后续可换 JWT）
 	token, err := generateToken()
 	if err != nil {
 		return "", err
 	}
+
+	s.mu.Lock()
+	s.tokens[token] = phone
+	s.mu.Unlock()
+
 	return token, nil
+}
+
+// PhoneByToken 根据 token 查手机号
+func (s *Service) PhoneByToken(token string) (string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	phone, ok := s.tokens[token]
+	return phone, ok
 }
 
 func generateToken() (string, error) {
