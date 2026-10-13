@@ -7,6 +7,7 @@ import '../../../core/theme/theme_provider.dart';
 import '../../../core/theme/theme_type.dart';
 import '../../auth/presentation/auth_provider.dart';
 import '../data/memo_model.dart';
+import 'memo_detail_page.dart';
 import 'memo_provider.dart';
 
 class MemoListPage extends ConsumerWidget {
@@ -38,7 +39,6 @@ class MemoListPage extends ConsumerWidget {
       ),
       body: Column(
         children: [
-          // 筛选 Chip
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -61,7 +61,9 @@ class MemoListPage extends ConsumerWidget {
                       fontSize: 13,
                     ),
                     side: BorderSide(
-                      color: selected ? colors.primary.withOpacity(0.4) : colors.border,
+                      color: selected
+                          ? colors.primary.withOpacity(0.4)
+                          : colors.border,
                     ),
                     backgroundColor: colors.surface,
                   ),
@@ -69,8 +71,6 @@ class MemoListPage extends ConsumerWidget {
               }).toList(),
             ),
           ),
-
-          // 列表
           Expanded(
             child: memosAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -80,10 +80,13 @@ class MemoListPage extends ConsumerWidget {
                   children: [
                     Text('加载失败', style: TextStyle(color: colors.danger)),
                     const SizedBox(height: 8),
-                    Text('$e', style: TextStyle(color: colors.secondaryText, fontSize: 12)),
+                    Text('$e',
+                        style:
+                            TextStyle(color: colors.secondaryText, fontSize: 12)),
                     const SizedBox(height: 12),
                     TextButton(
-                      onPressed: () => ref.read(memoListProvider.notifier).load(),
+                      onPressed: () =>
+                          ref.read(memoListProvider.notifier).load(),
                       child: const Text('重试'),
                     ),
                   ],
@@ -95,17 +98,16 @@ class MemoListPage extends ConsumerWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.note_add_outlined, size: 48, color: colors.secondaryText),
+                        Icon(Icons.note_add_outlined,
+                            size: 48, color: colors.secondaryText),
                         const SizedBox(height: 12),
-                        Text(
-                          '暂无备忘录',
-                          style: TextStyle(color: colors.secondaryText, fontSize: 15),
-                        ),
+                        Text('暂无备忘录',
+                            style: TextStyle(
+                                color: colors.secondaryText, fontSize: 15)),
                         const SizedBox(height: 4),
-                        Text(
-                          '点击右下角 + 添加第一条',
-                          style: TextStyle(color: colors.secondaryText, fontSize: 13),
-                        ),
+                        Text('点击右下角 + 添加第一条',
+                            style: TextStyle(
+                                color: colors.secondaryText, fontSize: 13)),
                       ],
                     ),
                   );
@@ -117,13 +119,21 @@ class MemoListPage extends ConsumerWidget {
                     itemCount: list.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
+                      final memo = list[index];
                       return _MemoCard(
-                        memo: list[index],
+                        memo: memo,
                         colors: colors,
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => MemoDetailPage(memo: memo),
+                            ),
+                          );
+                        },
                         onToggle: () => ref
                             .read(memoListProvider.notifier)
-                            .toggleComplete(list[index].id),
-                        onDelete: () => _confirmDelete(context, ref, list[index]),
+                            .toggleComplete(memo.id),
+                        onDelete: () => _confirmDelete(context, ref, memo),
                       );
                     },
                   ),
@@ -143,16 +153,21 @@ class MemoListPage extends ConsumerWidget {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: '首页'),
-          BottomNavigationBarItem(icon: Icon(Icons.auto_awesome), label: 'AI'),
-          BottomNavigationBarItem(icon: Icon(Icons.grid_view_rounded), label: '工具'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: '我的'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined), label: '首页'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.auto_awesome), label: 'AI'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.grid_view_rounded), label: '工具'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline), label: '我的'),
         ],
       ),
     );
   }
 
-  void _showCreateDialog(BuildContext context, WidgetRef ref, AppColors colors) {
+  void _showCreateDialog(
+      BuildContext context, WidgetRef ref, AppColors colors) {
     final titleCtrl = TextEditingController();
     String selectedTag = '工作';
     final tags = ['工作', '灵感', '学习', '生活'];
@@ -177,22 +192,13 @@ class MemoListPage extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('新建备忘录', style: Theme.of(context).textTheme.titleLarge),
+                  Text('新建备忘录',
+                      style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 16),
                   TextField(
                     controller: titleCtrl,
                     autofocus: true,
-                    decoration: const InputDecoration(
-                      hintText: '输入标题…',
-                    ),
-                    onSubmitted: (_) async {
-                      if (titleCtrl.text.trim().isEmpty) return;
-                      await ref.read(memoListProvider.notifier).create(
-                            title: titleCtrl.text.trim(),
-                            tag: selectedTag,
-                          );
-                      if (ctx.mounted) Navigator.pop(ctx);
-                    },
+                    decoration: const InputDecoration(hintText: '输入标题…'),
                   ),
                   const SizedBox(height: 12),
                   Wrap(
@@ -202,7 +208,8 @@ class MemoListPage extends ConsumerWidget {
                       return ChoiceChip(
                         label: Text(t),
                         selected: selected,
-                        onSelected: (_) => setModalState(() => selectedTag = t),
+                        onSelected: (_) =>
+                            setModalState(() => selectedTag = t),
                       );
                     }).toList(),
                   ),
@@ -242,7 +249,8 @@ class MemoListPage extends ConsumerWidget {
         title: const Text('删除备忘录'),
         content: Text('确定删除「${memo.title}」吗？'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
@@ -263,7 +271,8 @@ class MemoListPage extends ConsumerWidget {
     );
   }
 
-  void _showThemePicker(BuildContext context, WidgetRef ref, AppThemeType currentType) {
+  void _showThemePicker(
+      BuildContext context, WidgetRef ref, AppThemeType currentType) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -291,7 +300,9 @@ class MemoListPage extends ConsumerWidget {
                 return ListTile(
                   leading: Icon(
                     selected ? Icons.check_circle : Icons.circle_outlined,
-                    color: selected ? Theme.of(context).colorScheme.primary : null,
+                    color: selected
+                        ? Theme.of(context).colorScheme.primary
+                        : null,
                   ),
                   title: Text(type.displayName),
                   subtitle: Text(type.description),
@@ -313,12 +324,14 @@ class MemoListPage extends ConsumerWidget {
 class _MemoCard extends StatelessWidget {
   final Memo memo;
   final AppColors colors;
+  final VoidCallback onTap;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
 
   const _MemoCard({
     required this.memo,
     required this.colors,
+    required this.onTap,
     required this.onToggle,
     required this.onDelete,
   });
@@ -381,75 +394,96 @@ class _MemoCard extends StatelessWidget {
       ),
       confirmDismiss: (_) async {
         onDelete();
-        return false; // 由确认对话框处理真正删除
+        return false;
       },
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: colors.surface,
+      child: Material(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: colors.border.withOpacity(0.6)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: tagColor.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(_tagIcon(), size: 18, color: tagColor),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colors.border.withOpacity(0.6)),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    memo.title,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: colors.onSurface,
-                      decoration: memo.completed ? TextDecoration.lineThrough : null,
-                    ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: tagColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _formatTime(memo.updatedAt),
-                    style: TextStyle(fontSize: 12, color: colors.secondaryText),
-                  ),
-                  if (memo.tag.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: tagColor.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        memo.tag,
+                  child: Icon(_tagIcon(), size: 18, color: tagColor),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        memo.title,
                         style: TextStyle(
-                          fontSize: 11,
-                          color: tagColor,
-                          fontWeight: FontWeight.w500,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: colors.onSurface,
+                          decoration: memo.completed
+                              ? TextDecoration.lineThrough
+                              : null,
                         ),
                       ),
-                    ),
-                  ],
-                ],
-              ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatTime(memo.updatedAt),
+                        style: TextStyle(
+                            fontSize: 12, color: colors.secondaryText),
+                      ),
+                      if (memo.tag.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: tagColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            memo.tag,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: tagColor,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (memo.starred)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Icon(Icons.star,
+                        size: 18, color: colors.tagOrange),
+                  ),
+                IconButton(
+                  onPressed: onToggle,
+                  icon: Icon(
+                    memo.completed
+                        ? Icons.check_circle
+                        : Icons.circle_outlined,
+                    color: memo.completed
+                        ? colors.success
+                        : colors.secondaryText,
+                    size: 24,
+                  ),
+                ),
+              ],
             ),
-            IconButton(
-              onPressed: onToggle,
-              icon: Icon(
-                memo.completed ? Icons.check_circle : Icons.circle_outlined,
-                color: memo.completed ? colors.success : colors.secondaryText,
-                size: 24,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
