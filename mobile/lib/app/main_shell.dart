@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../features/memo/presentation/memo_list_page.dart';
-import '../features/ops/presentation/ops_home_page.dart';
 import '../core/theme/theme_provider.dart';
 import '../core/theme/theme_type.dart';
+import '../features/ai/presentation/ai_page.dart';
 import '../features/auth/presentation/auth_provider.dart';
+import '../features/memo/presentation/memo_list_page.dart';
+import '../features/ops/presentation/ops_home_page.dart';
 
 /// 登录后主框架：底部导航
 class MainShell extends ConsumerStatefulWidget {
@@ -21,12 +22,8 @@ class _MainShellState extends ConsumerState<MainShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      const _MemoTab(),
-      const _PlaceholderTab(
-        title: 'AI 助手',
-        message: 'AI 任务辅助即将上线',
-        icon: Icons.auto_awesome,
-      ),
+      const MemoListPage(showBottomBar: false),
+      const AiPage(),
       const OpsHomePage(),
       const _ProfileTab(),
     ];
@@ -59,45 +56,6 @@ class _MainShellState extends ConsumerState<MainShell> {
             label: '我的',
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// 备忘录 Tab：复用列表，去掉自带 bottomBar 避免双重导航
-class _MemoTab extends StatelessWidget {
-  const _MemoTab();
-
-  @override
-  Widget build(BuildContext context) {
-    return const MemoListPage(showBottomBar: false);
-  }
-}
-
-class _PlaceholderTab extends StatelessWidget {
-  final String title;
-  final String message;
-  final IconData icon;
-
-  const _PlaceholderTab({
-    required this.title,
-    required this.message,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 48, color: Colors.grey),
-            const SizedBox(height: 12),
-            Text(message, style: const TextStyle(color: Colors.grey)),
-          ],
-        ),
       ),
     );
   }
