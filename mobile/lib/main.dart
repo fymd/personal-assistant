@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'app/main_shell.dart';
 import 'core/theme/theme_provider.dart';
 import 'features/auth/presentation/auth_provider.dart';
 import 'features/auth/presentation/login_page.dart';
-import 'features/memo/presentation/memo_list_page.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,7 +36,7 @@ class PersonalAssistantApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: theme,
       home: auth.isAuthenticated
-          ? const MemoListPage()
+          ? const MainShell()
           : const LoginPage(),
     );
   }
