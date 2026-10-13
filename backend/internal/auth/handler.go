@@ -1,17 +1,91 @@
 package auth
 
-// TODO: 实现手机号 + 验证码登录相关 Handler
-//
-// 预期接口：
-// POST /api/v1/auth/send-code   { "phone": "13800138000" }
-// POST /api/v1/auth/login       { "phone": "13800138000", "code": "123456" }
-//
-// 返回 JWT Token，后续请求使用 Authorization: Bearer <token>
+import (
+	"encoding/json"
+	"net/http"
+)
 
 type Handler struct {
-	// service *Service
+	svc *Service
 }
 
-func NewHandler() *Handler {
-	return &Handler{}
+func NewHandler(svc *Service) *Handler {
+	return &Handler{svc: svc}
+}
+
+type sendCodeRequest struct {
+	Phone string `json:"phone"`
+}
+
+type loginRequest struct {
+	Phone string `json:"phone"`
+	Code  string `json:"code"`
+}
+
+type apiResponse struct {
+	Code    int         `json:"code"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data,omitempty"`
+}
+
+func writeJSON(w http.ResponseWriter, status int, resp apiResponse) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// SendCode POST /api/v1/auth/send-code
+func (h *Handler) SendCode(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, apiResponse{Code: 405, Message: "method not allowed"})
+		return
+	}
+
+	var req sendCodeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Phone == "" {
+		writeJSON(w, http.StatusBadRequest, apiResponse{Code: 400, Message: "phone is required"})
+		return
+	}
+
+	if _, err := h.svc.SendCode(req.Phone); err != nil {
+		writeJSON(w, http.StatusBadRequest, apiResponse{Code: 400, Message: err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, apiResponse{
+		Code:    0,
+		Message: "ok",
+		Data: map[string]string{
+			"hint": "开发环境验证码固定为 123456",
+		},
+	})
+}
+
+// Login POST /api/v1/auth/login
+func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, apiResponse{Code: 405, Message: "method not allowed"})
+		return
+	}
+
+	var req loginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Phone == "" || req.Code == "" {
+		writeJSON(w, http.StatusBadRequest, apiResponse{Code: 400, Message: "phone and code are required"})
+		return
+	}
+
+	token, err := h.svc.Login(req.Phone, req.Code)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, apiResponse{Code: 401, Message: err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, apiResponse{
+		Code:    0,
+		Message: "ok",
+		Data: map[string]string{
+			"token": token,
+			"phone": req.Phone,
+		},
+	})
 }
