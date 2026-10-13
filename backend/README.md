@@ -8,7 +8,13 @@ go mod tidy
 go run ./cmd/server
 ```
 
-服务默认监听 `:8080`，健康检查：`GET /health`
+服务默认监听 `:8080`
+
+- 健康检查：`GET /health`
+- 发送验证码：`POST /api/v1/auth/send-code`  `{ "phone": "13800138000" }`
+- 登录：`POST /api/v1/auth/login`  `{ "phone": "13800138000", "code": "123456" }`
+
+**开发环境验证码固定为 `123456`**，控制台会打印 mock 短信日志。
 
 ## 目录说明
 
@@ -16,7 +22,7 @@ go run ./cmd/server
 backend/
 ├── cmd/server/          # 入口
 ├── internal/
-│   ├── auth/            # 手机号验证码登录
+│   ├── auth/            # ✅ 手机号验证码登录（已实现 mock）
 │   ├── user/
 │   ├── memo/            # 备忘录 / 待办
 │   ├── ai/              # AI 代理（调用云端 API）
@@ -36,8 +42,8 @@ backend/
 
 ## 下一步
 
-1. 接入 SQLite + 用户表 / 备忘录表
-2. 实现验证码发送与登录（开发阶段 mock 验证码）
-3. 实现 JWT 中间件
+1. ✅ 验证码发送与登录（开发阶段 mock）
+2. 接入 SQLite + 用户表
+3. 实现正式 JWT
 4. 备忘录 CRUD API
 5. 预留 membership 相关路由
