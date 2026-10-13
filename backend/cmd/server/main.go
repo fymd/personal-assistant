@@ -6,31 +6,39 @@ import (
 	"net/http"
 
 	"github.com/fymd/personal-assistant/backend/internal/auth"
+	"github.com/fymd/personal-assistant/backend/internal/config"
+	"github.com/fymd/personal-assistant/backend/internal/db"
 	"github.com/fymd/personal-assistant/backend/internal/memo"
 )
 
 func main() {
+	cfg := config.Load()
+
+	database, err := db.Open(cfg.DBPath)
+	if err != nil {
+		log.Fatalf("open database: %v", err)
+	}
+	defer database.Close()
+	log.Printf("SQLite ready: %s", cfg.DBPath)
+
 	mux := http.NewServeMux()
 
-	// 健康检查
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{"status":"ok"}`)
 	})
 
-	// Auth
-	authSvc := auth.NewService()
+	authSvc := auth.NewService(database)
 	authHandler := auth.NewHandler(authSvc)
 	mux.HandleFunc("/api/v1/auth/send-code", authHandler.SendCode)
 	mux.HandleFunc("/api/v1/auth/login", authHandler.Login)
 
-	// Memos
-	memoStore := memo.NewStore()
+	memoStore := memo.NewStore(database)
 	memoHandler := memo.NewHandler(memoStore, authSvc)
 	mux.Handle("/api/v1/memos", memoHandler)
 	mux.Handle("/api/v1/memos/", memoHandler)
 
-	addr := ":8080"
+	addr := ":" + cfg.ServerPort
 	log.Printf("Personal Assistant backend starting on %s", addr)
 	log.Printf("Auth:  POST /api/v1/auth/send-code , POST /api/v1/auth/login")
 	log.Printf("Memos: GET/POST /api/v1/memos , GET/PUT/DELETE /api/v1/memos/{id}")
