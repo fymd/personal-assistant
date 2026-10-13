@@ -22,8 +22,28 @@ class ApiClient {
     );
   }
 
+  Future<Map<String, dynamic>> get(String path) async {
+    final res = await dio.get(path);
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
   Future<Map<String, dynamic>> post(String path, {Map<String, dynamic>? data}) async {
     final res = await dio.post(path, data: data);
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
+  Future<Map<String, dynamic>> put(String path, {Map<String, dynamic>? data}) async {
+    final res = await dio.put(path, data: data);
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
+  Future<Map<String, dynamic>> patch(String path, {Map<String, dynamic>? data}) async {
+    final res = await dio.patch(path, data: data);
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
+  Future<Map<String, dynamic>> delete(String path) async {
+    final res = await dio.delete(path);
     return Map<String, dynamic>.from(res.data as Map);
   }
 }
