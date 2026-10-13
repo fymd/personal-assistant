@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/fymd/personal-assistant/backend/internal/ai"
 	"github.com/fymd/personal-assistant/backend/internal/auth"
 	"github.com/fymd/personal-assistant/backend/internal/config"
 	"github.com/fymd/personal-assistant/backend/internal/db"
@@ -38,10 +39,20 @@ func main() {
 	mux.Handle("/api/v1/memos", memoHandler)
 	mux.Handle("/api/v1/memos/", memoHandler)
 
+	aiClient := ai.NewClient(cfg.AIAPIKey, cfg.AIBaseURL, cfg.AIModel)
+	aiHandler := ai.NewHandler(aiClient, authSvc)
+	mux.HandleFunc("/api/v1/ai/chat", aiHandler.Chat)
+	if aiClient.Enabled() {
+		log.Printf("AI: enabled model=%s base=%s", cfg.AIModel, cfg.AIBaseURL)
+	} else {
+		log.Printf("AI: mock mode (set AI_API_KEY to enable cloud API)")
+	}
+
 	addr := ":" + cfg.ServerPort
 	log.Printf("Personal Assistant backend starting on %s", addr)
 	log.Printf("Auth:  POST /api/v1/auth/send-code , POST /api/v1/auth/login")
-	log.Printf("Memos: GET/POST /api/v1/memos , GET/PUT/DELETE /api/v1/memos/{id}")
+	log.Printf("Memos: GET/POST /api/v1/memos")
+	log.Printf("AI:    POST /api/v1/ai/chat")
 	log.Printf("Dev verification code is always 123456")
 
 	if err := http.ListenAndServe(addr, corsMiddleware(mux)); err != nil {
