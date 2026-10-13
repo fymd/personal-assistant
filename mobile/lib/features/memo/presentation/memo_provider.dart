@@ -84,6 +84,39 @@ class MemoListNotifier extends StateNotifier<AsyncValue<List<Memo>>> {
     }
   }
 
+  Future<void> update(
+    String id, {
+    String? title,
+    String? content,
+    String? tag,
+    bool? starred,
+    bool? completed,
+  }) async {
+    if (_repo == null) return;
+    try {
+      // 先更新字段
+      var updated = await _repo!.update(
+        id,
+        title: title,
+        content: content,
+        tag: tag,
+        starred: starred,
+      );
+      // 完成状态单独接口
+      final current = state.valueOrNull ?? [];
+      final existing = current.where((m) => m.id == id).firstOrNull;
+      if (completed != null && existing != null && existing.completed != completed) {
+        updated = await _repo!.toggleComplete(id);
+      }
+      state = AsyncValue.data([
+        for (final m in current)
+          if (m.id == id) updated else m,
+      ]);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   Future<void> toggleComplete(String id) async {
     if (_repo == null) return;
     try {
