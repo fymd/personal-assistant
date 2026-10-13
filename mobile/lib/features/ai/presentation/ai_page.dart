@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../auth/presentation/auth_provider.dart';
+import '../../memo/presentation/memo_provider.dart';
 import '../data/ai_repository.dart';
+import '../data/todo_parser.dart';
 
 class AiPage extends ConsumerStatefulWidget {
   const AiPage({super.key});
@@ -17,7 +20,10 @@ class _AiPageState extends ConsumerState<AiPage> {
   final _inputCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   final List<ChatMessage> _messages = [];
+  /// messageIndex -> 已成功加入备忘录的条目
+  final Map<int, Set<String>> _addedItems = {};
   bool _loading = false;
+  bool _adding = false;
   String _action = 'general';
   bool _mockHintShown = false;
 
@@ -45,7 +51,6 @@ class _AiPageState extends ConsumerState<AiPage> {
 
     try {
       final repo = AiRepository(token: token);
-      // 只传近期上下文，避免过长
       final history = _messages.length > 12
           ? _messages.sublist(_messages.length - 12)
           : List<ChatMessage>.from(_messages);
@@ -80,11 +85,56 @@ class _AiPageState extends ConsumerState<AiPage> {
     }
   }
 
+  Future<void> _addTodos(int messageIndex, List<String> items,
+      {String? only}) async {
+    final targets =
+        only != null ? [only] : items.where((e) => !(_addedItems[messageIndex]?.contains(e) ?? false)).toList();
+    if (targets.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('没有可添加的条目')),
+      );
+      return;
+    }
+
+    setState(() => _adding = true);
+    var ok = 0;
+    try {
+      for (final title in targets) {
+        await ref.read(memoListProvider.notifier).create(
+              title: title,
+              tag: '工作',
+            );
+        _addedItems.putIfAbsent(messageIndex, () => <String>{}).add(title);
+        ok++;
+      }
+      if (!mounted) return;
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ok == 1 ? '已加入备忘录「${targets.first}」' : '已加入 $ok 条备忘录'),
+          action: SnackBarAction(
+            label: '去查看',
+            onPressed: () {
+              // 切到首页由用户点底部导航；此处仅提示
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('添加失败：$e（已成功 $ok 条）')),
+      );
+    } finally {
+      if (mounted) setState(() => _adding = false);
+    }
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollCtrl.hasClients) return;
       _scrollCtrl.animateTo(
-        _scrollCtrl.position.maxScrollExtent + 80,
+        _scrollCtrl.position.maxScrollExtent + 120,
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOut,
       );
@@ -113,7 +163,10 @@ class _AiPageState extends ConsumerState<AiPage> {
           if (_messages.isNotEmpty)
             IconButton(
               tooltip: '清空',
-              onPressed: () => setState(() => _messages.clear()),
+              onPressed: () => setState(() {
+                _messages.clear();
+                _addedItems.clear();
+              }),
               icon: const Icon(Icons.delete_outline),
             ),
         ],
@@ -129,47 +182,21 @@ class _AiPageState extends ConsumerState<AiPage> {
                     itemCount: _messages.length + (_loading ? 1 : 0),
                     itemBuilder: (context, i) {
                       if (_loading && i == _messages.length) {
-                        return Align(
-                          alignment: Alignment.centerLeft,
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: colors.surface,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                  color: colors.border.withOpacity(0.5)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: colors.primary,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text('思考中…',
-                                    style: TextStyle(
-                                        color: colors.secondaryText,
-                                        fontSize: 13)),
-                              ],
-                            ),
-                          ),
-                        );
+                        return _ThinkingBubble(colors: colors);
                       }
                       final m = _messages[i];
                       final isUser = m.role == 'user';
+                      final todos =
+                          isUser ? <String>[] : parseTodoItems(m.content);
+                      final added = _addedItems[i] ?? {};
+
                       return Align(
                         alignment: isUser
                             ? Alignment.centerRight
                             : Alignment.centerLeft,
                         child: Container(
                           constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.82,
+                            maxWidth: MediaQuery.of(context).size.width * 0.88,
                           ),
                           margin: const EdgeInsets.only(bottom: 10),
                           padding: const EdgeInsets.symmetric(
@@ -198,7 +225,6 @@ class _AiPageState extends ConsumerState<AiPage> {
                               if (!isUser) ...[
                                 const SizedBox(height: 6),
                                 Row(
-                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
                                       visualDensity: VisualDensity.compact,
@@ -219,8 +245,60 @@ class _AiPageState extends ConsumerState<AiPage> {
                                           size: 16,
                                           color: colors.secondaryText),
                                     ),
+                                    if (todos.isNotEmpty)
+                                      TextButton.icon(
+                                        onPressed: _adding
+                                            ? null
+                                            : () => _addTodos(i, todos),
+                                        icon: const Icon(
+                                            Icons.playlist_add,
+                                            size: 18),
+                                        label: Text(
+                                          added.length >= todos.length
+                                              ? '已全部加入'
+                                              : '全部加入备忘录',
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                      ),
                                   ],
                                 ),
+                                if (todos.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  ...todos.map((t) {
+                                    final done = added.contains(t);
+                                    return Padding(
+                                      padding: const EdgeInsets.only(bottom: 4),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              '· $t',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: colors.secondaryText,
+                                              ),
+                                            ),
+                                          ),
+                                          TextButton(
+                                            onPressed: done || _adding
+                                                ? null
+                                                : () => _addTodos(i, todos,
+                                                    only: t),
+                                            child: Text(
+                                              done ? '已加入' : '加入',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: done
+                                                    ? colors.secondaryText
+                                                    : colors.primary,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                                ],
                               ],
                             ],
                           ),
@@ -230,7 +308,6 @@ class _AiPageState extends ConsumerState<AiPage> {
                   ),
           ),
 
-          // 快捷动作
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -239,8 +316,8 @@ class _AiPageState extends ConsumerState<AiPage> {
                 _ActionChip(
                   label: '生成待办',
                   selected: _action == 'todos',
-                  onTap: () => _applyAction(
-                      'todos', '帮我生成今天的工作待办：'),
+                  onTap: () =>
+                      _applyAction('todos', '帮我生成今天的工作待办：'),
                 ),
                 _ActionChip(
                   label: '润色文字',
@@ -264,7 +341,6 @@ class _AiPageState extends ConsumerState<AiPage> {
           ),
           const SizedBox(height: 8),
 
-          // 输入区
           SafeArea(
             top: false,
             child: Padding(
@@ -303,8 +379,45 @@ class _AiPageState extends ConsumerState<AiPage> {
   }
 }
 
+class _ThinkingBubble extends StatelessWidget {
+  final AppColors colors;
+  const _ThinkingBubble({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colors.border.withOpacity(0.5)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colors.primary,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text('思考中…',
+                style: TextStyle(color: colors.secondaryText, fontSize: 13)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _EmptyHint extends StatelessWidget {
-  final dynamic colors;
+  final AppColors colors;
 
   const _EmptyHint({required this.colors});
 
@@ -325,7 +438,7 @@ class _EmptyHint extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              '选择下方快捷能力，或直接输入问题',
+              '生成待办后可一键加入备忘录',
               style: TextStyle(color: colors.secondaryText, fontSize: 13),
             ),
           ],
