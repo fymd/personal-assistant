@@ -23,7 +23,6 @@ func Open(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 
-	// 合理连接池（SQLite 写串行）
 	database.SetMaxOpenConns(1)
 	database.SetMaxIdleConns(1)
 
@@ -70,15 +69,29 @@ CREATE TABLE IF NOT EXISTS memos (
     FOREIGN KEY (user_phone) REFERENCES users(phone)
 );
 
+CREATE TABLE IF NOT EXISTS remote_desktop_profiles (
+    id         TEXT PRIMARY KEY,
+    user_phone TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    protocol   TEXT NOT NULL DEFAULT 'RDP',
+    host       TEXT NOT NULL,
+    port       INTEGER NOT NULL DEFAULT 3389,
+    username   TEXT NOT NULL DEFAULT '',
+    note       TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (user_phone) REFERENCES users(phone)
+);
+
 CREATE INDEX IF NOT EXISTS idx_memos_user ON memos(user_phone);
 CREATE INDEX IF NOT EXISTS idx_memos_updated ON memos(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sessions_phone ON sessions(phone);
+CREATE INDEX IF NOT EXISTS idx_rd_profiles_user ON remote_desktop_profiles(user_phone);
 `
 	if _, err := db.Exec(schema); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
 
-	// 兼容已存在的 users 表：补齐会员与主题字段
 	for _, col := range []struct {
 		name string
 		def  string

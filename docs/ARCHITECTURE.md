@@ -50,23 +50,33 @@
 - `cmd/server`：入口
 - `internal/`：业务逻辑（按领域划分）
 - `pkg/`：可复用公共库
-- 使用标准库 + 少量成熟依赖（如 chi/gin、gorm 或 sqlx、jwt 等）
-- 接口设计预留会员订阅相关路由与中间件
-- 用户表预留 `theme_preference` 字段
+- JWT 认证、短信 Provider、会员预留、运维连接配置等
 
 ## 认证流程（手机号 + 验证码）
 
 1. 客户端请求发送验证码 → 后端调用短信服务商（开发阶段可 mock）
-2. 用户提交手机号 + 验证码 → 后端校验 → 签发 JWT / Session
-3. 后续请求携带 Token
+2. 用户提交手机号 + 验证码 → 后端校验 → 签发 JWT
+3. 后续请求携带 `Authorization: Bearer <jwt>`
+
+## 远程桌面（分阶段）
+
+| 阶段 | 能力 | 状态 |
+|------|------|------|
+| **1（当前）** | 连接配置云端同步（协议/主机/端口/备注）；App 内唤起系统 RDP/VNC/SSH 客户端 | ✅ |
+| **2** | 可选：自建或第三方网关（如 Apache Guacamole、RustDesk 自建）深链/WebView | 规划中 |
+| **3** | 内置画面：WebRTC 或专用协议（工作量大，单独立项） | 长期 |
+
+安全约定：
+- 服务端 **不存储密码**，仅存连接元数据
+- API：`GET/POST /api/v1/ops/remote-desktop`，`DELETE /api/v1/ops/remote-desktop/{id}`
 
 ## 数据同步
 
-- 备忘录、扫码记录等通过 REST API 同步
+- 备忘录、远程桌面配置等通过 REST API 同步
 - 冲突策略：后续可扩展（目前以服务端为准或 last-write-wins）
 
 ## 安全与扩展
 
 - 所有敏感配置通过环境变量注入
-- 预留 `/api/v1/membership` 等接口
-- 远程桌面功能初期可先做入口 + 跳转第三方或 WebRTC 方案调研
+- 会员：`/api/v1/membership`
+- 短信：`SMS_PROVIDER=mock|aliyun|tencent`

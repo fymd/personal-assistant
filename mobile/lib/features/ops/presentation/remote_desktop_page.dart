@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/theme_provider.dart';
+import '../../auth/presentation/auth_provider.dart';
+import '../data/remote_desktop_repository.dart';
 
-/// 远程桌面入口（第一版：配置与跳转占位，后续可接 WebRTC / 第三方协议）
+/// 远程桌面：连接配置管理 + 唤起系统客户端（阶段 1）
 class RemoteDesktopPage extends ConsumerStatefulWidget {
   const RemoteDesktopPage({super.key});
 
@@ -13,18 +15,67 @@ class RemoteDesktopPage extends ConsumerStatefulWidget {
 }
 
 class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
+  final _nameCtrl = TextEditingController();
   final _hostCtrl = TextEditingController();
   final _portCtrl = TextEditingController(text: '3389');
+  final _userCtrl = TextEditingController();
   String _protocol = 'RDP';
+
+  List<RemoteDesktopProfile> _profiles = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
 
   @override
   void dispose() {
+    _nameCtrl.dispose();
     _hostCtrl.dispose();
     _portCtrl.dispose();
+    _userCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _connect() async {
+  RemoteDesktopRepository? _repo() {
+    final token = ref.read(authStateProvider).token;
+    if (token == null || token.isEmpty) return null;
+    return RemoteDesktopRepository(token: token);
+  }
+
+  Future<void> _load() async {
+    final repo = _repo();
+    if (repo == null) {
+      setState(() {
+        _loading = false;
+        _error = '请先登录以同步连接配置';
+      });
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final list = await repo.list();
+      if (!mounted) return;
+      setState(() {
+        _profiles = list;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
+  }
+
+  Future<void> _save() async {
     final host = _hostCtrl.text.trim();
     if (host.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -32,18 +83,72 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
       );
       return;
     }
-    final port = _portCtrl.text.trim();
+    final repo = _repo();
+    if (repo == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请先登录')),
+      );
+      return;
+    }
+    final port = int.tryParse(_portCtrl.text.trim()) ?? 3389;
+    final name =
+        _nameCtrl.text.trim().isEmpty ? host : _nameCtrl.text.trim();
+    try {
+      await repo.create(
+        name: name,
+        protocol: _protocol,
+        host: host,
+        port: port,
+        username: _userCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已保存')),
+      );
+      _nameCtrl.clear();
+      _hostCtrl.clear();
+      _userCtrl.clear();
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('保存失败：$e')),
+      );
+    }
+  }
 
-    // 第一版：尝试用系统 URL scheme 打开（若设备有对应 App）
-    // RDP: rdp:// 或 ms-rd:
-    // 否则提示后续接入内置客户端
+  Future<void> _delete(RemoteDesktopProfile p) async {
+    final repo = _repo();
+    if (repo == null) return;
+    try {
+      await repo.delete(p.id);
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('删除失败：$e')),
+      );
+    }
+  }
+
+  Future<void> _connect({String? protocol, String? host, int? port}) async {
+    final p = protocol ?? _protocol;
+    final h = host ?? _hostCtrl.text.trim();
+    final pt = port ?? int.tryParse(_portCtrl.text.trim()) ?? 3389;
+    if (h.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请输入主机地址')),
+      );
+      return;
+    }
+
     Uri? uri;
-    if (_protocol == 'RDP') {
-      uri = Uri.parse('rdp://full%20address=s:$host:$port');
-    } else if (_protocol == 'VNC') {
-      uri = Uri.parse('vnc://$host:$port');
+    if (p == 'RDP') {
+      uri = Uri.parse('rdp://full%20address=s:$h:$pt');
+    } else if (p == 'VNC') {
+      uri = Uri.parse('vnc://$h:$pt');
     } else {
-      uri = Uri.parse('ssh://$host:$port');
+      uri = Uri.parse('ssh://$h:$pt');
     }
 
     try {
@@ -57,9 +162,9 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
           builder: (ctx) => AlertDialog(
             title: const Text('暂无可用客户端'),
             content: Text(
-              '已记录目标：$_protocol://$host:$port\n\n'
-              '当前版本为入口占位。请安装系统远程桌面客户端，'
-              '或等待后续内置 WebRTC / 协议支持。',
+              '目标：$p://$h:$pt\n\n'
+              '阶段 1：保存配置并尝试唤起系统远程桌面 / SSH / VNC 客户端。\n'
+              '内置画面传输（WebRTC 网关等）将在后续版本提供。',
             ),
             actions: [
               TextButton(
@@ -84,7 +189,15 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
 
     return Scaffold(
       backgroundColor: colors.background,
-      appBar: AppBar(title: const Text('远程桌面')),
+      appBar: AppBar(
+        title: const Text('远程桌面'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _load,
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -96,12 +209,65 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
               border: Border.all(color: colors.border.withOpacity(0.5)),
             ),
             child: Text(
-              '第一版为入口占位：填写目标后尝试唤起系统客户端。'
-              '后续可接入内置远程桌面（WebRTC 等）。',
-              style: TextStyle(fontSize: 13, color: colors.secondaryText, height: 1.4),
+              '阶段 1：多设备同步连接配置，并尝试唤起系统客户端（RDP/VNC/SSH）。'
+              '不在服务端存储密码。内置远程画面见后续版本。',
+              style: TextStyle(
+                  fontSize: 13, color: colors.secondaryText, height: 1.4),
             ),
           ),
           const SizedBox(height: 20),
+          Text('已保存', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(_error!, style: TextStyle(color: colors.error)),
+            )
+          else if (_profiles.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text('暂无保存的连接', style: TextStyle(color: colors.secondaryText)),
+            )
+          else
+            ..._profiles.map((p) {
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  title: Text(p.name),
+                  subtitle: Text('${p.protocol} · ${p.host}:${p.port}'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.play_arrow),
+                        onPressed: () => _connect(
+                          protocol: p.protocol,
+                          host: p.host,
+                          port: p.port,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () => _delete(p),
+                      ),
+                    ],
+                  ),
+                  onTap: () => _connect(
+                    protocol: p.protocol,
+                    host: p.host,
+                    port: p.port,
+                  ),
+                ),
+              );
+            }),
+          const Divider(height: 32),
+          Text('新建连接', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
           Text('协议', style: Theme.of(context).textTheme.labelMedium),
           const SizedBox(height: 8),
           Wrap(
@@ -119,7 +285,15 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
               );
             }).toList(),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _nameCtrl,
+            decoration: const InputDecoration(
+              labelText: '名称（可选）',
+              hintText: '如 公司办公机',
+            ),
+          ),
+          const SizedBox(height: 12),
           TextField(
             controller: _hostCtrl,
             decoration: const InputDecoration(
@@ -133,13 +307,30 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
             decoration: const InputDecoration(labelText: '端口'),
             keyboardType: TextInputType.number,
           ),
-          const SizedBox(height: 24),
-          SizedBox(
-            height: 48,
-            child: ElevatedButton(
-              onPressed: _connect,
-              child: const Text('连接'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _userCtrl,
+            decoration: const InputDecoration(
+              labelText: '用户名（可选，仅备注）',
             ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _save,
+                  child: const Text('保存配置'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => _connect(),
+                  child: const Text('连接'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
