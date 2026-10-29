@@ -7,6 +7,7 @@ import (
 
 	"github.com/fymd/personal-assistant/backend/internal/ai"
 	"github.com/fymd/personal-assistant/backend/internal/auth"
+	"github.com/fymd/personal-assistant/backend/internal/auth/sms"
 	"github.com/fymd/personal-assistant/backend/internal/config"
 	"github.com/fymd/personal-assistant/backend/internal/db"
 	"github.com/fymd/personal-assistant/backend/internal/memo"
@@ -26,6 +27,12 @@ func main() {
 	defer database.Close()
 	log.Printf("SQLite ready: %s", cfg.DBPath)
 
+	smsProvider, err := sms.NewProvider(cfg)
+	if err != nil {
+		log.Fatalf("sms provider: %v", err)
+	}
+	log.Printf("SMS provider: %s", smsProvider.Name())
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -33,7 +40,11 @@ func main() {
 		fmt.Fprint(w, `{"status":"ok"}`)
 	})
 
-	authSvc := auth.NewService(database, cfg.JWTSecret)
+	fixedCode := ""
+	if smsProvider.Name() == "mock" {
+		fixedCode = cfg.SMSFixedCode
+	}
+	authSvc := auth.NewService(database, cfg.JWTSecret, smsProvider, fixedCode)
 	authHandler := auth.NewHandler(authSvc)
 	mux.HandleFunc("/api/v1/auth/send-code", authHandler.SendCode)
 	mux.HandleFunc("/api/v1/auth/login", authHandler.Login)
@@ -57,7 +68,9 @@ func main() {
 	log.Printf("Auth:  POST /api/v1/auth/send-code , POST /api/v1/auth/login (JWT)")
 	log.Printf("Memos: GET/POST /api/v1/memos")
 	log.Printf("AI:    POST /api/v1/ai/chat")
-	log.Printf("Dev verification code is always 123456")
+	if smsProvider.Name() == "mock" {
+		log.Printf("Dev SMS: mock (fixed code from SMS_FIXED_CODE or random if empty)")
+	}
 
 	if err := http.ListenAndServe(addr, corsMiddleware(mux)); err != nil {
 		log.Fatal(err)

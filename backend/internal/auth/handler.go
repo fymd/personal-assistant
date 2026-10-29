@@ -52,12 +52,15 @@ func (h *Handler) SendCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	data := map[string]string{}
+	if h.svc.SMSProviderName() == "mock" {
+		data["hint"] = "开发环境 mock 短信，请查看服务端日志中的验证码"
+	}
+
 	writeJSON(w, http.StatusOK, apiResponse{
 		Code:    0,
 		Message: "ok",
-		Data: map[string]string{
-			"hint": "开发环境验证码固定为 123456",
-		},
+		Data:    data,
 	})
 }
 
