@@ -8,91 +8,54 @@ go mod tidy
 go run ./cmd/server
 ```
 
-首次运行会自动：
-- 创建 `./data/assistant.db`（可用环境变量 `DB_PATH` 修改）
-- 建表：`users` / `sessions` / `memos`（`sessions` 表保留兼容，新登录不再写入）
+首次运行会自动建库建表。服务默认 `:8080`。若存在仓库内 `web/`，会同时托管 Web UI：http://127.0.0.1:8080/
 
-服务默认监听 `:8080`
+## 主要 API
 
-- 健康检查：`GET /health`
-- 发送验证码：`POST /api/v1/auth/send-code`  `{ "phone": "13800138000" }`
-- 登录：`POST /api/v1/auth/login`  `{ "phone": "13800138000", "code": "123456" }`
-- 备忘录：`GET/POST /api/v1/memos`（需 `Authorization: Bearer <jwt>`）
-- 会员：`GET /api/v1/membership`；开发激活 `POST /api/v1/membership/activate`
+| 路径 | 说明 |
+|------|------|
+| `GET /health` | 健康检查 |
+| `POST /api/v1/auth/send-code` | 发送验证码 |
+| `POST /api/v1/auth/login` | 登录，返回 JWT |
+| `GET/POST /api/v1/memos` | 备忘录 |
+| `GET /api/v1/membership` | 会员状态 |
+| `POST /api/v1/membership/activate` | 开发期开通会员 |
+| `GET/POST /api/v1/ops/remote-desktop` | 远程桌面配置列表 / 新建 |
+| `GET/PUT/DELETE /api/v1/ops/remote-desktop/{id}` | 单条查询 / 更新 / 删除 |
+| `POST /api/v1/ai/chat` | AI 对话 |
 
-### 登录响应示例
+受保护接口需：`Authorization: Bearer <jwt>`。
 
-```json
-{
-  "code": 0,
-  "message": "ok",
-  "data": {
-    "token": "<JWT>",
-    "phone": "13800138000",
-    "expires_in": 7200
-  }
-}
+开发环境验证码见 `SMS_FIXED_CODE`（mock 默认 `123456`）。
+
+### 远程桌面配置示例
+
+```bash
+# 新建
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"办公机","protocol":"RDP","host":"192.168.1.10","port":3389}' \
+  http://127.0.0.1:8080/api/v1/ops/remote-desktop
+
+# 更新
+curl -X PUT -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"办公机-改","protocol":"RDP","host":"192.168.1.10","port":3389}' \
+  http://127.0.0.1:8080/api/v1/ops/remote-desktop/<id>
 ```
 
-Token 为 HS256 JWT，默认有效期 2 小时。
+不存密码，仅元数据同步。
 
-## 短信验证码
+## 短信
 
 | SMS_PROVIDER | 行为 |
 |--------------|------|
-| `mock`（默认） | 不真实发送，验证码打印在服务端日志；可用 `SMS_FIXED_CODE` 固定（默认 123456） |
-| `aliyun` | 阿里云 Dysmsapi SendSms |
-| `tencent` | 占位，尚未实现 |
-
-防护：
-- 同一手机号发送间隔 ≥ 60 秒
-- 验证码 5 分钟有效
-- 最多试错 5 次，超限需重新获取
-
-## 会员（预留）
-
-| 接口 | 说明 |
-|------|------|
-| `GET /api/v1/membership` | 当前用户会员状态（需登录） |
-| `POST /api/v1/membership/activate` | **开发占位**：直接开通 pro/premium，未对接支付 |
-
-`users` 表字段：`membership_tier`（free/pro/premium）、`membership_expire_at`、`theme_preference`。
-
-激活示例：
-
-```json
-{ "tier": "pro", "days": 30 }
-```
-
-## 持久化说明
-
-| 数据 | 存储 |
-|------|------|
-| 用户 / 会员 | SQLite `users` |
-| 登录凭证 | JWT（无状态，密钥为 `JWT_SECRET`） |
-| 备忘录 | SQLite `memos`（重启不丢失） |
-| 验证码 | 内存（5 分钟过期） |
-
-依赖：`modernc.org/sqlite`、`github.com/golang-jwt/jwt/v5`
+| mock | 日志打印验证码 |
+| aliyun | 阿里云 SendSms |
+| tencent | 占位 |
 
 ## 环境变量
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| SERVER_PORT | 8080 | 服务端口 |
-| DB_PATH | ./data/assistant.db | SQLite 路径 |
-| JWT_SECRET | change-me-in-production | **生产必须改为强随机串** |
-| SMS_PROVIDER | mock | mock / aliyun / tencent |
-| SMS_FIXED_CODE | 123456 | 仅 mock：固定验证码；留空则随机 |
-| SMS_ACCESS_KEY | | 短信 AccessKey |
-| SMS_ACCESS_SECRET | | 短信 Secret |
-| SMS_SIGN_NAME | | 短信签名 |
-| SMS_TEMPLATE_CODE | | 短信模板 CODE |
+见 `.env.example`。生产务必设置强随机 `JWT_SECRET`。
 
-## 下一步
+## 依赖
 
-1. ✅ SQLite 持久化
-2. ✅ 正式 JWT
-3. ✅ 短信 Provider 抽象（mock + 阿里云；腾讯云占位）
-4. ✅ 会员接口与模型预留
-5. 运维 / AI 相关 API 完善
+`modernc.org/sqlite`、`github.com/golang-jwt/jwt/v5`、`github.com/google/uuid`

@@ -73,6 +73,30 @@ class RemoteDesktopRepository {
         Map<String, dynamic>.from(res['data'] as Map));
   }
 
+  Future<RemoteDesktopProfile> update(
+    String id, {
+    required String name,
+    required String protocol,
+    required String host,
+    required int port,
+    String username = '',
+    String note = '',
+  }) async {
+    final res = await _client.put('/api/v1/ops/remote-desktop/$id', data: {
+      'name': name,
+      'protocol': protocol,
+      'host': host,
+      'port': port,
+      'username': username,
+      'note': note,
+    });
+    if (res['code'] != 0) {
+      throw Exception(res['message'] ?? '更新失败');
+    }
+    return RemoteDesktopProfile.fromJson(
+        Map<String, dynamic>.from(res['data'] as Map));
+  }
+
   Future<void> delete(String id) async {
     final res = await _client.delete('/api/v1/ops/remote-desktop/$id');
     if (res['code'] != 0) {

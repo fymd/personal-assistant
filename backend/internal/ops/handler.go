@@ -52,7 +52,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/ops")
 	path = strings.Trim(path, "/")
 
-	// remote-desktop 或 remote-desktop/{id}
 	if path == "remote-desktop" || strings.HasPrefix(path, "remote-desktop/") {
 		h.handleRemoteDesktop(w, r, phone, path)
 		return
@@ -92,14 +91,33 @@ func (h *Handler) handleRemoteDesktop(w http.ResponseWriter, r *http.Request, ph
 		return
 	}
 
-	if r.Method == http.MethodDelete {
+	switch r.Method {
+	case http.MethodGet:
+		p, err := h.store.GetProfile(phone, id)
+		if err != nil {
+			writeJSON(w, http.StatusNotFound, apiResponse{Code: 404, Message: "not found"})
+			return
+		}
+		writeJSON(w, http.StatusOK, apiResponse{Code: 0, Message: "ok", Data: p})
+	case http.MethodPut, http.MethodPatch:
+		var req UpdateProfileRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, apiResponse{Code: 400, Message: "invalid body"})
+			return
+		}
+		p, err := h.store.UpdateProfile(phone, id, req)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, apiResponse{Code: 400, Message: err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, apiResponse{Code: 0, Message: "ok", Data: p})
+	case http.MethodDelete:
 		if err := h.store.DeleteProfile(phone, id); err != nil {
 			writeJSON(w, http.StatusNotFound, apiResponse{Code: 404, Message: "not found"})
 			return
 		}
 		writeJSON(w, http.StatusOK, apiResponse{Code: 0, Message: "ok"})
-		return
+	default:
+		writeJSON(w, http.StatusMethodNotAllowed, apiResponse{Code: 405, Message: "method not allowed"})
 	}
-
-	writeJSON(w, http.StatusMethodNotAllowed, apiResponse{Code: 405, Message: "method not allowed"})
 }

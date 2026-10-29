@@ -18,7 +18,7 @@ class OpsHomePage extends ConsumerWidget {
       _ToolItem(
         icon: Icons.desktop_windows_outlined,
         title: '远程桌面',
-        subtitle: '连接远程主机（入口）',
+        subtitle: '配置同步 · 唤起系统客户端',
         color: colors.tagBlue,
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const RemoteDesktopPage()),

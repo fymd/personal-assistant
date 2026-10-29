@@ -20,6 +20,7 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
   final _portCtrl = TextEditingController(text: '3389');
   final _userCtrl = TextEditingController();
   String _protocol = 'RDP';
+  String? _editingId;
 
   List<RemoteDesktopProfile> _profiles = [];
   bool _loading = true;
@@ -44,6 +45,26 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
     final token = ref.read(authStateProvider).token;
     if (token == null || token.isEmpty) return null;
     return RemoteDesktopRepository(token: token);
+  }
+
+  void _clearForm() {
+    _editingId = null;
+    _nameCtrl.clear();
+    _hostCtrl.clear();
+    _userCtrl.clear();
+    _protocol = 'RDP';
+    _portCtrl.text = '3389';
+  }
+
+  void _fillForm(RemoteDesktopProfile p) {
+    setState(() {
+      _editingId = p.id;
+      _nameCtrl.text = p.name;
+      _hostCtrl.text = p.host;
+      _portCtrl.text = '${p.port}';
+      _userCtrl.text = p.username;
+      _protocol = p.protocol;
+    });
   }
 
   Future<void> _load() async {
@@ -94,20 +115,29 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
     final name =
         _nameCtrl.text.trim().isEmpty ? host : _nameCtrl.text.trim();
     try {
-      await repo.create(
-        name: name,
-        protocol: _protocol,
-        host: host,
-        port: port,
-        username: _userCtrl.text.trim(),
-      );
+      if (_editingId != null) {
+        await repo.update(
+          _editingId!,
+          name: name,
+          protocol: _protocol,
+          host: host,
+          port: port,
+          username: _userCtrl.text.trim(),
+        );
+      } else {
+        await repo.create(
+          name: name,
+          protocol: _protocol,
+          host: host,
+          port: port,
+          username: _userCtrl.text.trim(),
+        );
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已保存')),
+        SnackBar(content: Text(_editingId != null ? '已更新' : '已保存')),
       );
-      _nameCtrl.clear();
-      _hostCtrl.clear();
-      _userCtrl.clear();
+      setState(_clearForm);
       await _load();
     } catch (e) {
       if (!mounted) return;
@@ -120,8 +150,21 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
   Future<void> _delete(RemoteDesktopProfile p) async {
     final repo = _repo();
     if (repo == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('删除配置'),
+        content: Text('确定删除「${p.name}」？'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('删除')),
+        ],
+      ),
+    );
+    if (ok != true) return;
     try {
       await repo.delete(p.id);
+      if (_editingId == p.id) setState(_clearForm);
       await _load();
     } catch (e) {
       if (!mounted) return;
@@ -142,7 +185,7 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
       return;
     }
 
-    Uri? uri;
+    Uri uri;
     if (p == 'RDP') {
       uri = Uri.parse('rdp://full%20address=s:$h:$pt');
     } else if (p == 'VNC') {
@@ -163,8 +206,8 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
             title: const Text('暂无可用客户端'),
             content: Text(
               '目标：$p://$h:$pt\n\n'
-              '阶段 1：保存配置并尝试唤起系统远程桌面 / SSH / VNC 客户端。\n'
-              '内置画面传输（WebRTC 网关等）将在后续版本提供。',
+              '阶段 1：配置已可云端同步。请安装系统远程桌面 / SSH / VNC 客户端后重试。\n'
+              '内置画面传输（阶段 2/3）尚未实现。',
             ),
             actions: [
               TextButton(
@@ -186,6 +229,8 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
   @override
   Widget build(BuildContext context) {
     final colors = ref.watch(appColorsProvider);
+    final formTitle = _editingId != null ? '编辑连接' : '新建连接';
+    final saveLabel = _editingId != null ? '更新配置' : '保存配置';
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -209,8 +254,8 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
               border: Border.all(color: colors.border.withOpacity(0.5)),
             ),
             child: Text(
-              '阶段 1：多设备同步连接配置，并尝试唤起系统客户端（RDP/VNC/SSH）。'
-              '不在服务端存储密码。内置远程画面见后续版本。',
+              '阶段 1 已完成：连接配置多端同步（增删改查），并尝试唤起系统 RDP/VNC/SSH 客户端。'
+              '服务端不存密码。内置远程画面见阶段 2/3。',
               style: TextStyle(
                   fontSize: 13, color: colors.secondaryText, height: 1.4),
             ),
@@ -235,8 +280,10 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
             )
           else
             ..._profiles.map((p) {
+              final selected = _editingId == p.id;
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
+                color: selected ? colors.surfaceVariant : null,
                 child: ListTile(
                   title: Text(p.name),
                   subtitle: Text('${p.protocol} · ${p.host}:${p.port}'),
@@ -244,7 +291,13 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
+                        icon: const Icon(Icons.edit_outlined),
+                        tooltip: '编辑',
+                        onPressed: () => _fillForm(p),
+                      ),
+                      IconButton(
                         icon: const Icon(Icons.play_arrow),
+                        tooltip: '连接',
                         onPressed: () => _connect(
                           protocol: p.protocol,
                           host: p.host,
@@ -253,6 +306,7 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete_outline),
+                        tooltip: '删除',
                         onPressed: () => _delete(p),
                       ),
                     ],
@@ -262,11 +316,23 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
                     host: p.host,
                     port: p.port,
                   ),
+                  onLongPress: () => _fillForm(p),
                 ),
               );
             }),
           const Divider(height: 32),
-          Text('新建连接', style: Theme.of(context).textTheme.titleMedium),
+          Row(
+            children: [
+              Expanded(
+                child: Text(formTitle, style: Theme.of(context).textTheme.titleMedium),
+              ),
+              if (_editingId != null)
+                TextButton(
+                  onPressed: () => setState(_clearForm),
+                  child: const Text('取消编辑'),
+                ),
+            ],
+          ),
           const SizedBox(height: 12),
           Text('协议', style: Theme.of(context).textTheme.labelMedium),
           const SizedBox(height: 8),
@@ -320,7 +386,7 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
               Expanded(
                 child: OutlinedButton(
                   onPressed: _save,
-                  child: const Text('保存配置'),
+                  child: Text(saveLabel),
                 ),
               ),
               const SizedBox(width: 12),
