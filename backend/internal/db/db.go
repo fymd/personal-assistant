@@ -70,16 +70,18 @@ CREATE TABLE IF NOT EXISTS memos (
 );
 
 CREATE TABLE IF NOT EXISTS remote_desktop_profiles (
-    id         TEXT PRIMARY KEY,
-    user_phone TEXT NOT NULL,
-    name       TEXT NOT NULL,
-    protocol   TEXT NOT NULL DEFAULT 'RDP',
-    host       TEXT NOT NULL,
-    port       INTEGER NOT NULL DEFAULT 3389,
-    username   TEXT NOT NULL DEFAULT '',
-    note       TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
+    id           TEXT PRIMARY KEY,
+    user_phone   TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    protocol     TEXT NOT NULL DEFAULT 'RDP',
+    host         TEXT NOT NULL,
+    port         INTEGER NOT NULL DEFAULT 3389,
+    username     TEXT NOT NULL DEFAULT '',
+    note         TEXT NOT NULL DEFAULT '',
+    connect_mode TEXT NOT NULL DEFAULT 'external',
+    gateway_url  TEXT NOT NULL DEFAULT '',
+    created_at   TEXT NOT NULL,
+    updated_at   TEXT NOT NULL,
     FOREIGN KEY (user_phone) REFERENCES users(phone)
 );
 
@@ -102,6 +104,10 @@ CREATE INDEX IF NOT EXISTS idx_rd_profiles_user ON remote_desktop_profiles(user_
 	} {
 		_, _ = db.Exec(fmt.Sprintf(`ALTER TABLE users ADD COLUMN %s %s`, col.name, col.def))
 	}
+
+	// 远程桌面阶段 2 字段（兼容旧库）
+	_, _ = db.Exec(`ALTER TABLE remote_desktop_profiles ADD COLUMN connect_mode TEXT NOT NULL DEFAULT 'external'`)
+	_, _ = db.Exec(`ALTER TABLE remote_desktop_profiles ADD COLUMN gateway_url TEXT NOT NULL DEFAULT ''`)
 
 	return nil
 }
