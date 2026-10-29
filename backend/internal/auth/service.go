@@ -1,17 +1,18 @@
 package auth
 
 import (
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
 )
 
-// Service 验证码内存 + session SQLite 持久化
+// Service 验证码内存 + JWT 签发/校验
 type Service struct {
-	db    *sql.DB
+	db        *sql.DB
+	jwtSecret string
+	accessTTL time.Duration
+
 	mu    sync.RWMutex
 	codes map[string]codeEntry // phone -> entry（验证码仍内存，短时有效）
 }
@@ -21,11 +22,19 @@ type codeEntry struct {
 	ExpiresAt time.Time
 }
 
-func NewService(db *sql.DB) *Service {
+// NewService jwtSecret 用于 HS256 签名；accessTTL 默认 2 小时
+func NewService(db *sql.DB, jwtSecret string) *Service {
 	return &Service{
-		db:    db,
-		codes: make(map[string]codeEntry),
+		db:        db,
+		jwtSecret: jwtSecret,
+		accessTTL: 2 * time.Hour,
+		codes:     make(map[string]codeEntry),
 	}
+}
+
+// AccessTTL 返回 Access Token 有效期，供 Login 响应 expires_in
+func (s *Service) AccessTTL() time.Duration {
+	return s.accessTTL
 }
 
 func (s *Service) SendCode(phone string) (string, error) {
@@ -70,31 +79,14 @@ func (s *Service) Login(phone, code string) (string, error) {
 		return "", err
 	}
 
-	token, err := generateToken()
-	if err != nil {
-		return "", err
-	}
-
-	if _, err := s.db.Exec(`INSERT INTO sessions (token, phone) VALUES (?, ?)`, token, phone); err != nil {
-		return "", err
-	}
-
-	return token, nil
+	return s.issueToken(phone)
 }
 
+// PhoneByToken 解析 JWT，返回手机号；无效或过期返回 false
 func (s *Service) PhoneByToken(token string) (string, bool) {
-	var phone string
-	err := s.db.QueryRow(`SELECT phone FROM sessions WHERE token = ?`, token).Scan(&phone)
+	phone, err := s.parseToken(token)
 	if err != nil {
 		return "", false
 	}
 	return phone, true
-}
-
-func generateToken() (string, error) {
-	b := make([]byte, 24)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(b), nil
 }

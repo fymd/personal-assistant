@@ -83,9 +83,10 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apiResponse{
 		Code:    0,
 		Message: "ok",
-		Data: map[string]string{
-			"token": token,
-			"phone": req.Phone,
+		Data: map[string]interface{}{
+			"token":      token,
+			"phone":      req.Phone,
+			"expires_in": int(h.svc.AccessTTL().Seconds()),
 		},
 	})
 }

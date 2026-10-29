@@ -15,6 +15,10 @@ import (
 func main() {
 	cfg := config.Load()
 
+	if cfg.JWTSecret == "" || cfg.JWTSecret == "change-me-in-production" {
+		log.Printf("WARNING: JWT_SECRET is weak or default; set a strong secret in production")
+	}
+
 	database, err := db.Open(cfg.DBPath)
 	if err != nil {
 		log.Fatalf("open database: %v", err)
@@ -29,7 +33,7 @@ func main() {
 		fmt.Fprint(w, `{"status":"ok"}`)
 	})
 
-	authSvc := auth.NewService(database)
+	authSvc := auth.NewService(database, cfg.JWTSecret)
 	authHandler := auth.NewHandler(authSvc)
 	mux.HandleFunc("/api/v1/auth/send-code", authHandler.SendCode)
 	mux.HandleFunc("/api/v1/auth/login", authHandler.Login)
@@ -50,7 +54,7 @@ func main() {
 
 	addr := ":" + cfg.ServerPort
 	log.Printf("Personal Assistant backend starting on %s", addr)
-	log.Printf("Auth:  POST /api/v1/auth/send-code , POST /api/v1/auth/login")
+	log.Printf("Auth:  POST /api/v1/auth/send-code , POST /api/v1/auth/login (JWT)")
 	log.Printf("Memos: GET/POST /api/v1/memos")
 	log.Printf("AI:    POST /api/v1/ai/chat")
 	log.Printf("Dev verification code is always 123456")
