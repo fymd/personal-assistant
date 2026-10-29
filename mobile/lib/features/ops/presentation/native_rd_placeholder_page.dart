@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
-/// 阶段 3：内置远程画面占位（WebRTC / 专用协议尚未实现）
+import 'native_rd_session_page.dart';
+
+/// 阶段 3 入口：说明 + 进入 WebRTC 观看会话
 class NativeRdPlaceholderPage extends StatelessWidget {
   final String name;
   final String protocol;
   final String host;
   final int port;
+  final String profileId;
 
   const NativeRdPlaceholderPage({
     super.key,
@@ -13,6 +16,7 @@ class NativeRdPlaceholderPage extends StatelessWidget {
     required this.protocol,
     required this.host,
     required this.port,
+    this.profileId = '',
   });
 
   @override
@@ -27,22 +31,42 @@ class NativeRdPlaceholderPage extends StatelessWidget {
             const Icon(Icons.desktop_windows_outlined, size: 48),
             const SizedBox(height: 16),
             Text(
-              '阶段 3：内置画面（规划中）',
+              '阶段 3：WebRTC 内置会话',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 12),
             Text(
               '目标：$protocol://$host:$port\n\n'
-              '计划通过 WebRTC 或专用网关协议在 App 内渲染远程画面。'
-              '当前版本尚未实现，请改用「外置客户端」或「网关 WebView」模式。',
+              'App 作为观看端：创建信令会话、交换 SDP/ICE、渲染远端视频轨。\n'
+              '桌面采集与编码需在主机端 Agent 完成（本仓库暂不包含 Agent）。',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
             ),
             const SizedBox(height: 24),
-            const Text('建议路线：'),
-            const SizedBox(height: 8),
-            const Text('1. 自建 Apache Guacamole / RustDesk，使用网关模式'),
-            const Text('2. 安装系统 RDP/VNC/SSH 客户端，使用外置模式'),
-            const Text('3. 内置 WebRTC 客户端单独立项开发'),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(
+                      builder: (_) => NativeRdSessionPage(
+                        title: name,
+                        protocol: protocol,
+                        host: host,
+                        port: port,
+                        profileId: profileId,
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('创建 WebRTC 会话'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '无 Agent 时会话会停留在「等待主机加入」。也可继续使用外置客户端或网关模式。',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ],
         ),
       ),

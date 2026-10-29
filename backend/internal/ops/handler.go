@@ -3,6 +3,7 @@ package ops
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/fymd/personal-assistant/backend/internal/auth"
@@ -11,10 +12,15 @@ import (
 type Handler struct {
 	store   *Store
 	authSvc *auth.Service
+	hub     *SignalHub
 }
 
 func NewHandler(store *Store, authSvc *auth.Service) *Handler {
-	return &Handler{store: store, authSvc: authSvc}
+	return &Handler{
+		store:   store,
+		authSvc: authSvc,
+		hub:     NewSignalHub(),
+	}
 }
 
 type apiResponse struct {
@@ -61,9 +67,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleRemoteDesktop(w http.ResponseWriter, r *http.Request, phone, path string) {
-	id := strings.TrimPrefix(path, "remote-desktop")
-	id = strings.Trim(id, "/")
+	rest := strings.TrimPrefix(path, "remote-desktop")
+	rest = strings.Trim(rest, "/")
 
+	// 阶段 3：WebRTC 信令
+	if rest == "sessions" || strings.HasPrefix(rest, "sessions/") {
+		h.handleSessions(w, r, phone, rest)
+		return
+	}
+
+	id := rest
 	if id == "" {
 		switch r.Method {
 		case http.MethodGet:
@@ -120,4 +133,78 @@ func (h *Handler) handleRemoteDesktop(w http.ResponseWriter, r *http.Request, ph
 	default:
 		writeJSON(w, http.StatusMethodNotAllowed, apiResponse{Code: 405, Message: "method not allowed"})
 	}
+}
+
+// handleSessions path 形如 sessions 或 sessions/{id} 或 sessions/{id}/signal
+func (h *Handler) handleSessions(w http.ResponseWriter, r *http.Request, phone, rest string) {
+	parts := strings.Split(strings.Trim(rest, "/"), "/")
+	// parts[0] == "sessions"
+	if len(parts) == 1 {
+		if r.Method != http.MethodPost {
+			writeJSON(w, http.StatusMethodNotAllowed, apiResponse{Code: 405, Message: "method not allowed"})
+			return
+		}
+		var req CreateSessionRequest
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		s := h.hub.Create(phone, req)
+		writeJSON(w, http.StatusOK, apiResponse{Code: 0, Message: "ok", Data: s.Public()})
+		return
+	}
+
+	sessionID := parts[1]
+	if len(parts) == 2 {
+		if r.Method != http.MethodGet {
+			writeJSON(w, http.StatusMethodNotAllowed, apiResponse{Code: 405, Message: "method not allowed"})
+			return
+		}
+		s, err := h.hub.Get(sessionID)
+		if err != nil {
+			writeJSON(w, http.StatusNotFound, apiResponse{Code: 404, Message: err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, apiResponse{Code: 0, Message: "ok", Data: s.Public()})
+		return
+	}
+
+	if len(parts) == 3 && parts[2] == "signal" {
+		role := r.URL.Query().Get("role")
+		if role == "" {
+			role = "viewer"
+		}
+		if role != "viewer" && role != "agent" {
+			writeJSON(w, http.StatusBadRequest, apiResponse{Code: 400, Message: "role must be viewer or agent"})
+			return
+		}
+
+		switch r.Method {
+		case http.MethodPost:
+			var msg SignalMessage
+			if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
+				writeJSON(w, http.StatusBadRequest, apiResponse{Code: 400, Message: "invalid body"})
+				return
+			}
+			if msg.Type == "" {
+				writeJSON(w, http.StatusBadRequest, apiResponse{Code: 400, Message: "type required"})
+				return
+			}
+			if err := h.hub.Post(sessionID, role, msg); err != nil {
+				writeJSON(w, http.StatusNotFound, apiResponse{Code: 404, Message: err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, apiResponse{Code: 0, Message: "ok"})
+		case http.MethodGet:
+			since, _ := strconv.ParseInt(r.URL.Query().Get("since"), 10, 64)
+			msgs, err := h.hub.Poll(sessionID, role, since)
+			if err != nil {
+				writeJSON(w, http.StatusNotFound, apiResponse{Code: 404, Message: err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, apiResponse{Code: 0, Message: "ok", Data: msgs})
+		default:
+			writeJSON(w, http.StatusMethodNotAllowed, apiResponse{Code: 405, Message: "method not allowed"})
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusNotFound, apiResponse{Code: 404, Message: "not found"})
 }
