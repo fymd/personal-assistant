@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/theme_provider.dart';
 import 'dns_lookup_page.dart';
+import 'http_check_page.dart';
 import 'network_diag_page.dart';
+import 'ops_history_page.dart';
 import 'ping_page.dart';
 import 'port_scan_page.dart';
 import 'remote_desktop_page.dart';
@@ -56,10 +58,19 @@ class OpsHomePage extends ConsumerWidget {
         ),
       ),
       _ToolItem(
+        icon: Icons.http,
+        title: 'HTTP 探测',
+        subtitle: '状态码与耗时',
+        color: colors.tagBlue,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const HttpCheckPage()),
+        ),
+      ),
+      _ToolItem(
         icon: Icons.terminal,
         title: 'SSH 连接',
         subtitle: '唤起系统 SSH 客户端',
-        color: colors.tagBlue,
+        color: colors.tagGreen,
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const SshConnectPage()),
         ),
@@ -68,9 +79,18 @@ class OpsHomePage extends ConsumerWidget {
         icon: Icons.troubleshoot_outlined,
         title: '网络诊断',
         subtitle: '网卡 · DNS · 关键端口',
-        color: colors.tagGreen,
+        color: colors.tagOrange,
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const NetworkDiagPage()),
+        ),
+      ),
+      _ToolItem(
+        icon: Icons.history,
+        title: '运维历史',
+        subtitle: '云端同步的探测记录',
+        color: colors.tagGray,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const OpsHistoryPage()),
         ),
       ),
       _ToolItem(

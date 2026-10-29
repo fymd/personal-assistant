@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/theme_provider.dart';
+import '../../auth/presentation/auth_provider.dart';
+import '../data/ops_history_repository.dart';
 
 /// 阶段 1：TCP 端口扫描（客户端本地探测）
 class PortScanPage extends ConsumerStatefulWidget {
@@ -44,7 +47,6 @@ class _PortScanPageState extends ConsumerState<PortScanPage> {
       if (p != null && p > 0 && p <= 65535) set.add(p);
     }
     final list = set.toList()..sort();
-    // 安全上限，避免误扫过大范围
     if (list.length > 64) return list.sublist(0, 64);
     return list;
   }
@@ -70,7 +72,6 @@ class _PortScanPageState extends ConsumerState<PortScanPage> {
       _results.clear();
     });
 
-    // 有限并发
     const concurrency = 8;
     var index = 0;
     Future<void> worker() async {
@@ -107,6 +108,39 @@ class _PortScanPageState extends ConsumerState<PortScanPage> {
     } catch (_) {
       sw.stop();
       return _PortResult(port: port, open: false, ms: sw.elapsedMilliseconds);
+    }
+  }
+
+  Future<void> _syncHistory() async {
+    if (_results.isEmpty) return;
+    final token = ref.read(authStateProvider).token;
+    if (token == null || token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请先登录后再同步历史')),
+      );
+      return;
+    }
+    final host = _hostCtrl.text.trim();
+    final open = _results.where((e) => e.open).length;
+    final detail = jsonEncode(_results
+        .map((e) => {'port': e.port, 'open': e.open, 'ms': e.ms})
+        .toList());
+    try {
+      await OpsHistoryRepository(token: token).create(
+        tool: 'port_scan',
+        target: host,
+        summary: '开放 $open / ${_results.length}',
+        detail: detail,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已同步到运维历史')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('同步失败：$e')),
+      );
     }
   }
 
@@ -165,6 +199,13 @@ class _PortScanPageState extends ConsumerState<PortScanPage> {
               child: Text(_running ? '停止' : '开始扫描'),
             ),
           ),
+          if (_results.isNotEmpty && !_running) ...[
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: _syncHistory,
+              child: const Text('同步到运维历史'),
+            ),
+          ],
           if (_results.isNotEmpty) ...[
             const SizedBox(height: 16),
             Text(
