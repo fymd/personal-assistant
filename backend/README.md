@@ -18,6 +18,7 @@ go run ./cmd/server
 - 发送验证码：`POST /api/v1/auth/send-code`  `{ "phone": "13800138000" }`
 - 登录：`POST /api/v1/auth/login`  `{ "phone": "13800138000", "code": "123456" }`
 - 备忘录：`GET/POST /api/v1/memos`（需 `Authorization: Bearer <jwt>`）
+- 会员：`GET /api/v1/membership`；开发激活 `POST /api/v1/membership/activate`
 
 ### 登录响应示例
 
@@ -48,11 +49,26 @@ Token 为 HS256 JWT，默认有效期 2 小时。
 - 验证码 5 分钟有效
 - 最多试错 5 次，超限需重新获取
 
+## 会员（预留）
+
+| 接口 | 说明 |
+|------|------|
+| `GET /api/v1/membership` | 当前用户会员状态（需登录） |
+| `POST /api/v1/membership/activate` | **开发占位**：直接开通 pro/premium，未对接支付 |
+
+`users` 表字段：`membership_tier`（free/pro/premium）、`membership_expire_at`、`theme_preference`。
+
+激活示例：
+
+```json
+{ "tier": "pro", "days": 30 }
+```
+
 ## 持久化说明
 
 | 数据 | 存储 |
 |------|------|
-| 用户 | SQLite `users` |
+| 用户 / 会员 | SQLite `users` |
 | 登录凭证 | JWT（无状态，密钥为 `JWT_SECRET`） |
 | 备忘录 | SQLite `memos`（重启不丢失） |
 | 验证码 | 内存（5 分钟过期） |
@@ -78,4 +94,5 @@ Token 为 HS256 JWT，默认有效期 2 小时。
 1. ✅ SQLite 持久化
 2. ✅ 正式 JWT
 3. ✅ 短信 Provider 抽象（mock + 阿里云；腾讯云占位）
-4. 运维 / AI 相关 API 完善
+4. ✅ 会员接口与模型预留
+5. 运维 / AI 相关 API 完善

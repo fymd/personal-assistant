@@ -10,6 +10,7 @@ import (
 	"github.com/fymd/personal-assistant/backend/internal/auth/sms"
 	"github.com/fymd/personal-assistant/backend/internal/config"
 	"github.com/fymd/personal-assistant/backend/internal/db"
+	"github.com/fymd/personal-assistant/backend/internal/membership"
 	"github.com/fymd/personal-assistant/backend/internal/memo"
 )
 
@@ -54,6 +55,11 @@ func main() {
 	mux.Handle("/api/v1/memos", memoHandler)
 	mux.Handle("/api/v1/memos/", memoHandler)
 
+	memStore := membership.NewStore(database)
+	memHandler := membership.NewHandler(memStore, authSvc)
+	mux.Handle("/api/v1/membership", memHandler)
+	mux.Handle("/api/v1/membership/", memHandler)
+
 	aiClient := ai.NewClient(cfg.AIAPIKey, cfg.AIBaseURL, cfg.AIModel)
 	aiHandler := ai.NewHandler(aiClient, authSvc)
 	mux.HandleFunc("/api/v1/ai/chat", aiHandler.Chat)
@@ -65,9 +71,10 @@ func main() {
 
 	addr := ":" + cfg.ServerPort
 	log.Printf("Personal Assistant backend starting on %s", addr)
-	log.Printf("Auth:  POST /api/v1/auth/send-code , POST /api/v1/auth/login (JWT)")
-	log.Printf("Memos: GET/POST /api/v1/memos")
-	log.Printf("AI:    POST /api/v1/ai/chat")
+	log.Printf("Auth:        POST /api/v1/auth/send-code , POST /api/v1/auth/login (JWT)")
+	log.Printf("Memos:       GET/POST /api/v1/memos")
+	log.Printf("Membership:  GET /api/v1/membership , POST /api/v1/membership/activate")
+	log.Printf("AI:          POST /api/v1/ai/chat")
 	if smsProvider.Name() == "mock" {
 		log.Printf("Dev SMS: mock (fixed code from SMS_FIXED_CODE or random if empty)")
 	}

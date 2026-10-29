@@ -43,8 +43,11 @@ func Open(path string) (*sql.DB, error) {
 func migrate(db *sql.DB) error {
 	schema := `
 CREATE TABLE IF NOT EXISTS users (
-    phone      TEXT PRIMARY KEY,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    phone                TEXT PRIMARY KEY,
+    created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+    membership_tier      TEXT NOT NULL DEFAULT 'free',
+    membership_expire_at TEXT,
+    theme_preference     TEXT NOT NULL DEFAULT 'notion'
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -74,5 +77,18 @@ CREATE INDEX IF NOT EXISTS idx_sessions_phone ON sessions(phone);
 	if _, err := db.Exec(schema); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
+
+	// 兼容已存在的 users 表：补齐会员与主题字段
+	for _, col := range []struct {
+		name string
+		def  string
+	}{
+		{"membership_tier", "TEXT NOT NULL DEFAULT 'free'"},
+		{"membership_expire_at", "TEXT"},
+		{"theme_preference", "TEXT NOT NULL DEFAULT 'notion'"},
+	} {
+		_, _ = db.Exec(fmt.Sprintf(`ALTER TABLE users ADD COLUMN %s %s`, col.name, col.def))
+	}
+
 	return nil
 }
