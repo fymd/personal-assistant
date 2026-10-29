@@ -226,7 +226,7 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
           else if (_error != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: Text(_error!, style: TextStyle(color: colors.error)),
+              child: Text(_error!, style: TextStyle(color: colors.danger)),
             )
           else if (_profiles.isEmpty)
             Padding(
