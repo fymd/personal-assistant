@@ -8,7 +8,7 @@ import '../data/remote_desktop_repository.dart';
 import 'gateway_webview_page.dart';
 import 'native_rd_placeholder_page.dart';
 
-/// 远程桌面：阶段 1 外置 / 阶段 2 网关 / 阶段 3 内置占位
+/// 远程桌面：阶段 1 外置 / 阶段 2 网关 / 阶段 3 WebRTC 内置
 class RemoteDesktopPage extends ConsumerStatefulWidget {
   const RemoteDesktopPage({super.key});
 
@@ -205,6 +205,7 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
       port: p.port,
       gatewayUrl: p.gatewayUrl,
       title: p.name,
+      profileId: p.id,
     );
   }
 
@@ -215,6 +216,7 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
     int? port,
     String? gatewayUrl,
     String? title,
+    String? profileId,
   }) async {
     final m = mode ?? _connectMode;
     final p = protocol ?? _protocol;
@@ -222,6 +224,7 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
     final pt = port ?? int.tryParse(_portCtrl.text.trim()) ?? 3389;
     final gw = gatewayUrl ?? _gatewayCtrl.text.trim();
     final name = title ?? _nameCtrl.text.trim();
+    final pid = profileId ?? _editingId ?? '';
 
     if (m == 'gateway') {
       if (gw.isEmpty) {
@@ -251,13 +254,13 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
             protocol: p,
             host: h.isEmpty ? '-' : h,
             port: pt,
+            profileId: pid,
           ),
         ),
       );
       return;
     }
 
-    // external
     if (h.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('请输入主机地址')),
@@ -335,8 +338,8 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
               border: Border.all(color: colors.border.withOpacity(0.5)),
             ),
             child: Text(
-              '外置：系统 RDP/VNC/SSH　·　网关：WebView 打开 Guacamole/RustDesk　·　内置：阶段 3 占位\n'
-              '详见 docs/REMOTE_DESKTOP.md。服务端不存密码。',
+              '外置：系统客户端　·　网关：WebView　·　内置：WebRTC 观看端（需主机 Agent）\n'
+              '详见 docs/REMOTE_DESKTOP.md。',
               style: TextStyle(fontSize: 13, color: colors.secondaryText, height: 1.4),
             ),
           ),
@@ -368,8 +371,7 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
                   title: Text(p.name),
                   subtitle: Text(
                     '${_modeLabel(p.connectMode)} · ${p.protocol}'
-                    '${p.connectMode == 'gateway' ? '' : ' · ${p.host}:${p.port}'}'
-                    '${p.connectMode == 'gateway' && p.gatewayUrl.isNotEmpty ? ' · 网关' : ''}',
+                    '${p.connectMode == 'gateway' ? '' : ' · ${p.host}:${p.port}'}',
                   ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -414,7 +416,7 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
             children: [
               ('external', '外置客户端'),
               ('gateway', '网关 WebView'),
-              ('native', '内置(占位)'),
+              ('native', '内置 WebRTC'),
             ].map((e) {
               return ChoiceChip(
                 label: Text(e.$2),
