@@ -8,6 +8,8 @@ class RemoteDesktopProfile {
   final int port;
   final String username;
   final String note;
+  final String connectMode; // external | gateway | native
+  final String gatewayUrl;
 
   RemoteDesktopProfile({
     required this.id,
@@ -17,6 +19,8 @@ class RemoteDesktopProfile {
     required this.port,
     this.username = '',
     this.note = '',
+    this.connectMode = 'external',
+    this.gatewayUrl = '',
   });
 
   factory RemoteDesktopProfile.fromJson(Map<String, dynamic> json) {
@@ -28,6 +32,8 @@ class RemoteDesktopProfile {
       port: (json['port'] as num?)?.toInt() ?? 3389,
       username: json['username'] as String? ?? '',
       note: json['note'] as String? ?? '',
+      connectMode: json['connect_mode'] as String? ?? 'external',
+      gatewayUrl: json['gateway_url'] as String? ?? '',
     );
   }
 }
@@ -50,6 +56,27 @@ class RemoteDesktopRepository {
         .toList();
   }
 
+  Map<String, dynamic> _body({
+    required String name,
+    required String protocol,
+    required String host,
+    required int port,
+    String username = '',
+    String note = '',
+    required String connectMode,
+    String gatewayUrl = '',
+  }) =>
+      {
+        'name': name,
+        'protocol': protocol,
+        'host': host,
+        'port': port,
+        'username': username,
+        'note': note,
+        'connect_mode': connectMode,
+        'gateway_url': gatewayUrl,
+      };
+
   Future<RemoteDesktopProfile> create({
     required String name,
     required String protocol,
@@ -57,15 +84,22 @@ class RemoteDesktopRepository {
     required int port,
     String username = '',
     String note = '',
+    required String connectMode,
+    String gatewayUrl = '',
   }) async {
-    final res = await _client.post('/api/v1/ops/remote-desktop', data: {
-      'name': name,
-      'protocol': protocol,
-      'host': host,
-      'port': port,
-      'username': username,
-      'note': note,
-    });
+    final res = await _client.post(
+      '/api/v1/ops/remote-desktop',
+      data: _body(
+        name: name,
+        protocol: protocol,
+        host: host,
+        port: port,
+        username: username,
+        note: note,
+        connectMode: connectMode,
+        gatewayUrl: gatewayUrl,
+      ),
+    );
     if (res['code'] != 0) {
       throw Exception(res['message'] ?? '保存失败');
     }
@@ -81,15 +115,22 @@ class RemoteDesktopRepository {
     required int port,
     String username = '',
     String note = '',
+    required String connectMode,
+    String gatewayUrl = '',
   }) async {
-    final res = await _client.put('/api/v1/ops/remote-desktop/$id', data: {
-      'name': name,
-      'protocol': protocol,
-      'host': host,
-      'port': port,
-      'username': username,
-      'note': note,
-    });
+    final res = await _client.put(
+      '/api/v1/ops/remote-desktop/$id',
+      data: _body(
+        name: name,
+        protocol: protocol,
+        host: host,
+        port: port,
+        username: username,
+        note: note,
+        connectMode: connectMode,
+        gatewayUrl: gatewayUrl,
+      ),
+    );
     if (res['code'] != 0) {
       throw Exception(res['message'] ?? '更新失败');
     }

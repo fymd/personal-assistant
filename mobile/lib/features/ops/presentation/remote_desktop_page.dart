@@ -5,8 +5,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../auth/presentation/auth_provider.dart';
 import '../data/remote_desktop_repository.dart';
+import 'gateway_webview_page.dart';
+import 'native_rd_placeholder_page.dart';
 
-/// 远程桌面：连接配置管理 + 唤起系统客户端（阶段 1）
+/// 远程桌面：阶段 1 外置 / 阶段 2 网关 / 阶段 3 内置占位
 class RemoteDesktopPage extends ConsumerStatefulWidget {
   const RemoteDesktopPage({super.key});
 
@@ -19,7 +21,9 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
   final _hostCtrl = TextEditingController();
   final _portCtrl = TextEditingController(text: '3389');
   final _userCtrl = TextEditingController();
+  final _gatewayCtrl = TextEditingController();
   String _protocol = 'RDP';
+  String _connectMode = 'external';
   String? _editingId;
 
   List<RemoteDesktopProfile> _profiles = [];
@@ -38,6 +42,7 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
     _hostCtrl.dispose();
     _portCtrl.dispose();
     _userCtrl.dispose();
+    _gatewayCtrl.dispose();
     super.dispose();
   }
 
@@ -52,7 +57,9 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
     _nameCtrl.clear();
     _hostCtrl.clear();
     _userCtrl.clear();
+    _gatewayCtrl.clear();
     _protocol = 'RDP';
+    _connectMode = 'external';
     _portCtrl.text = '3389';
   }
 
@@ -60,10 +67,12 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
     setState(() {
       _editingId = p.id;
       _nameCtrl.text = p.name;
-      _hostCtrl.text = p.host;
+      _hostCtrl.text = p.host == '-' ? '' : p.host;
       _portCtrl.text = '${p.port}';
       _userCtrl.text = p.username;
       _protocol = p.protocol;
+      _connectMode = p.connectMode;
+      _gatewayCtrl.text = p.gatewayUrl;
     });
   }
 
@@ -97,8 +106,17 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
   }
 
   Future<void> _save() async {
+    final mode = _connectMode;
     final host = _hostCtrl.text.trim();
-    if (host.isEmpty) {
+    final gateway = _gatewayCtrl.text.trim();
+    if (mode == 'gateway') {
+      if (gateway.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('网关模式请填写网关 URL')),
+        );
+        return;
+      }
+    } else if (host.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('请输入主机地址')),
       );
@@ -112,25 +130,30 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
       return;
     }
     final port = int.tryParse(_portCtrl.text.trim()) ?? 3389;
-    final name =
-        _nameCtrl.text.trim().isEmpty ? host : _nameCtrl.text.trim();
+    final name = _nameCtrl.text.trim().isEmpty
+        ? (host.isEmpty ? '网关连接' : host)
+        : _nameCtrl.text.trim();
     try {
       if (_editingId != null) {
         await repo.update(
           _editingId!,
           name: name,
           protocol: _protocol,
-          host: host,
+          host: host.isEmpty ? '-' : host,
           port: port,
           username: _userCtrl.text.trim(),
+          connectMode: mode,
+          gatewayUrl: gateway,
         );
       } else {
         await repo.create(
           name: name,
           protocol: _protocol,
-          host: host,
+          host: host.isEmpty ? '-' : host,
           port: port,
           username: _userCtrl.text.trim(),
+          connectMode: mode,
+          gatewayUrl: gateway,
         );
       }
       if (!mounted) return;
@@ -174,17 +197,73 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
     }
   }
 
-  Future<void> _connect({String? protocol, String? host, int? port}) async {
+  Future<void> _connectProfile(RemoteDesktopProfile p) async {
+    await _connect(
+      mode: p.connectMode,
+      protocol: p.protocol,
+      host: p.host == '-' ? '' : p.host,
+      port: p.port,
+      gatewayUrl: p.gatewayUrl,
+      title: p.name,
+    );
+  }
+
+  Future<void> _connect({
+    String? mode,
+    String? protocol,
+    String? host,
+    int? port,
+    String? gatewayUrl,
+    String? title,
+  }) async {
+    final m = mode ?? _connectMode;
     final p = protocol ?? _protocol;
     final h = host ?? _hostCtrl.text.trim();
     final pt = port ?? int.tryParse(_portCtrl.text.trim()) ?? 3389;
+    final gw = gatewayUrl ?? _gatewayCtrl.text.trim();
+    final name = title ?? _nameCtrl.text.trim();
+
+    if (m == 'gateway') {
+      if (gw.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('请填写网关 URL')),
+        );
+        return;
+      }
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => GatewayWebViewPage(
+            title: name.isEmpty ? '远程网关' : name,
+            url: gw,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (m == 'native') {
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => NativeRdPlaceholderPage(
+            name: name,
+            protocol: p,
+            host: h.isEmpty ? '-' : h,
+            port: pt,
+          ),
+        ),
+      );
+      return;
+    }
+
+    // external
     if (h.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('请输入主机地址')),
       );
       return;
     }
-
     Uri uri;
     if (p == 'RDP') {
       uri = Uri.parse('rdp://full%20address=s:$h:$pt');
@@ -193,27 +272,21 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
     } else {
       uri = Uri.parse('ssh://$h:$pt');
     }
-
     try {
       final ok = await canLaunchUrl(uri);
       if (ok) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        if (!mounted) return;
+      } else if (mounted) {
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('暂无可用客户端'),
             content: Text(
               '目标：$p://$h:$pt\n\n'
-              '阶段 1：配置已可云端同步。请安装系统远程桌面 / SSH / VNC 客户端后重试。\n'
-              '内置画面传输（阶段 2/3）尚未实现。',
+              '请安装系统客户端，或改用「网关」模式打开 Guacamole/RustDesk Web。',
             ),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('知道了'),
-              ),
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('知道了')),
             ],
           ),
         );
@@ -223,6 +296,17 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('无法打开：$e')),
       );
+    }
+  }
+
+  String _modeLabel(String m) {
+    switch (m) {
+      case 'gateway':
+        return '网关';
+      case 'native':
+        return '内置';
+      default:
+        return '外置';
     }
   }
 
@@ -237,10 +321,7 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
       appBar: AppBar(
         title: const Text('远程桌面'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _load,
-          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),
       body: ListView(
@@ -254,10 +335,9 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
               border: Border.all(color: colors.border.withOpacity(0.5)),
             ),
             child: Text(
-              '阶段 1 已完成：连接配置多端同步（增删改查），并尝试唤起系统 RDP/VNC/SSH 客户端。'
-              '服务端不存密码。内置远程画面见阶段 2/3。',
-              style: TextStyle(
-                  fontSize: 13, color: colors.secondaryText, height: 1.4),
+              '外置：系统 RDP/VNC/SSH　·　网关：WebView 打开 Guacamole/RustDesk　·　内置：阶段 3 占位\n'
+              '详见 docs/REMOTE_DESKTOP.md。服务端不存密码。',
+              style: TextStyle(fontSize: 13, color: colors.secondaryText, height: 1.4),
             ),
           ),
           const SizedBox(height: 20),
@@ -286,36 +366,29 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
                 color: selected ? colors.surfaceVariant : null,
                 child: ListTile(
                   title: Text(p.name),
-                  subtitle: Text('${p.protocol} · ${p.host}:${p.port}'),
+                  subtitle: Text(
+                    '${_modeLabel(p.connectMode)} · ${p.protocol}'
+                    '${p.connectMode == 'gateway' ? '' : ' · ${p.host}:${p.port}'}'
+                    '${p.connectMode == 'gateway' && p.gatewayUrl.isNotEmpty ? ' · 网关' : ''}',
+                  ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
                         icon: const Icon(Icons.edit_outlined),
-                        tooltip: '编辑',
                         onPressed: () => _fillForm(p),
                       ),
                       IconButton(
                         icon: const Icon(Icons.play_arrow),
-                        tooltip: '连接',
-                        onPressed: () => _connect(
-                          protocol: p.protocol,
-                          host: p.host,
-                          port: p.port,
-                        ),
+                        onPressed: () => _connectProfile(p),
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete_outline),
-                        tooltip: '删除',
                         onPressed: () => _delete(p),
                       ),
                     ],
                   ),
-                  onTap: () => _connect(
-                    protocol: p.protocol,
-                    host: p.host,
-                    port: p.port,
-                  ),
+                  onTap: () => _connectProfile(p),
                   onLongPress: () => _fillForm(p),
                 ),
               );
@@ -333,6 +406,34 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
                 ),
             ],
           ),
+          const SizedBox(height: 12),
+          Text('连接模式', style: Theme.of(context).textTheme.labelMedium),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              ('external', '外置客户端'),
+              ('gateway', '网关 WebView'),
+              ('native', '内置(占位)'),
+            ].map((e) {
+              return ChoiceChip(
+                label: Text(e.$2),
+                selected: _connectMode == e.$1,
+                onSelected: (_) => setState(() => _connectMode = e.$1),
+              );
+            }).toList(),
+          ),
+          if (_connectMode == 'gateway') ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _gatewayCtrl,
+              decoration: const InputDecoration(
+                labelText: '网关 URL',
+                hintText: 'https://guac.example.com/',
+              ),
+              keyboardType: TextInputType.url,
+            ),
+          ],
           const SizedBox(height: 12),
           Text('协议', style: Theme.of(context).textTheme.labelMedium),
           const SizedBox(height: 8),
@@ -359,20 +460,22 @@ class _RemoteDesktopPageState extends ConsumerState<RemoteDesktopPage> {
               hintText: '如 公司办公机',
             ),
           ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _hostCtrl,
-            decoration: const InputDecoration(
-              labelText: '主机地址',
-              hintText: 'IP 或域名',
+          if (_connectMode != 'gateway') ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _hostCtrl,
+              decoration: const InputDecoration(
+                labelText: '主机地址',
+                hintText: 'IP 或域名',
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _portCtrl,
-            decoration: const InputDecoration(labelText: '端口'),
-            keyboardType: TextInputType.number,
-          ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _portCtrl,
+              decoration: const InputDecoration(labelText: '端口'),
+              keyboardType: TextInputType.number,
+            ),
+          ],
           const SizedBox(height: 12),
           TextField(
             controller: _userCtrl,
