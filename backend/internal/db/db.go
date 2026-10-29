@@ -85,10 +85,22 @@ CREATE TABLE IF NOT EXISTS remote_desktop_profiles (
     FOREIGN KEY (user_phone) REFERENCES users(phone)
 );
 
+CREATE TABLE IF NOT EXISTS ops_tool_history (
+    id         TEXT PRIMARY KEY,
+    user_phone TEXT NOT NULL,
+    tool       TEXT NOT NULL,
+    target     TEXT NOT NULL DEFAULT '',
+    summary    TEXT NOT NULL DEFAULT '',
+    detail     TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_phone) REFERENCES users(phone)
+);
+
 CREATE INDEX IF NOT EXISTS idx_memos_user ON memos(user_phone);
 CREATE INDEX IF NOT EXISTS idx_memos_updated ON memos(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sessions_phone ON sessions(phone);
 CREATE INDEX IF NOT EXISTS idx_rd_profiles_user ON remote_desktop_profiles(user_phone);
+CREATE INDEX IF NOT EXISTS idx_ops_history_user ON ops_tool_history(user_phone, created_at DESC);
 `
 	if _, err := db.Exec(schema); err != nil {
 		return fmt.Errorf("migrate: %w", err)
@@ -105,7 +117,6 @@ CREATE INDEX IF NOT EXISTS idx_rd_profiles_user ON remote_desktop_profiles(user_
 		_, _ = db.Exec(fmt.Sprintf(`ALTER TABLE users ADD COLUMN %s %s`, col.name, col.def))
 	}
 
-	// 远程桌面阶段 2 字段（兼容旧库）
 	_, _ = db.Exec(`ALTER TABLE remote_desktop_profiles ADD COLUMN connect_mode TEXT NOT NULL DEFAULT 'external'`)
 	_, _ = db.Exec(`ALTER TABLE remote_desktop_profiles ADD COLUMN gateway_url TEXT NOT NULL DEFAULT ''`)
 

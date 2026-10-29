@@ -62,15 +62,62 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleRemoteDesktop(w, r, phone, path)
 		return
 	}
+	if path == "history" || strings.HasPrefix(path, "history/") {
+		h.handleHistory(w, r, phone, path)
+		return
+	}
 
 	writeJSON(w, http.StatusNotFound, apiResponse{Code: 404, Message: "not found"})
+}
+
+func (h *Handler) handleHistory(w http.ResponseWriter, r *http.Request, phone, path string) {
+	id := strings.TrimPrefix(path, "history")
+	id = strings.Trim(id, "/")
+
+	if id == "" {
+		switch r.Method {
+		case http.MethodGet:
+			tool := r.URL.Query().Get("tool")
+			limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+			list, err := h.store.ListHistory(phone, tool, limit)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, apiResponse{Code: 500, Message: err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, apiResponse{Code: 0, Message: "ok", Data: list})
+		case http.MethodPost:
+			var req CreateHistoryRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				writeJSON(w, http.StatusBadRequest, apiResponse{Code: 400, Message: "invalid body"})
+				return
+			}
+			hist, err := h.store.CreateHistory(phone, req)
+			if err != nil {
+				writeJSON(w, http.StatusBadRequest, apiResponse{Code: 400, Message: err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, apiResponse{Code: 0, Message: "ok", Data: hist})
+		default:
+			writeJSON(w, http.StatusMethodNotAllowed, apiResponse{Code: 405, Message: "method not allowed"})
+		}
+		return
+	}
+
+	if r.Method == http.MethodDelete {
+		if err := h.store.DeleteHistory(phone, id); err != nil {
+			writeJSON(w, http.StatusNotFound, apiResponse{Code: 404, Message: "not found"})
+			return
+		}
+		writeJSON(w, http.StatusOK, apiResponse{Code: 0, Message: "ok"})
+		return
+	}
+	writeJSON(w, http.StatusMethodNotAllowed, apiResponse{Code: 405, Message: "method not allowed"})
 }
 
 func (h *Handler) handleRemoteDesktop(w http.ResponseWriter, r *http.Request, phone, path string) {
 	rest := strings.TrimPrefix(path, "remote-desktop")
 	rest = strings.Trim(rest, "/")
 
-	// 阶段 3：WebRTC 信令
 	if rest == "sessions" || strings.HasPrefix(rest, "sessions/") {
 		h.handleSessions(w, r, phone, rest)
 		return
@@ -135,10 +182,8 @@ func (h *Handler) handleRemoteDesktop(w http.ResponseWriter, r *http.Request, ph
 	}
 }
 
-// handleSessions path 形如 sessions 或 sessions/{id} 或 sessions/{id}/signal
 func (h *Handler) handleSessions(w http.ResponseWriter, r *http.Request, phone, rest string) {
 	parts := strings.Split(strings.Trim(rest, "/"), "/")
-	// parts[0] == "sessions"
 	if len(parts) == 1 {
 		if r.Method != http.MethodPost {
 			writeJSON(w, http.StatusMethodNotAllowed, apiResponse{Code: 405, Message: "method not allowed"})
