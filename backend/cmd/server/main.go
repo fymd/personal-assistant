@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/fymd/personal-assistant/backend/internal/ai"
 	"github.com/fymd/personal-assistant/backend/internal/auth"
@@ -75,6 +77,15 @@ func main() {
 		log.Printf("AI: mock mode (set AI_API_KEY to enable cloud API)")
 	}
 
+	// Web 静态资源（Issue #5）
+	if webDir := resolveWebDir(); webDir != "" {
+		fs := http.FileServer(http.Dir(webDir))
+		mux.Handle("/", spaFallback(webDir, fs))
+		log.Printf("Web UI:     serving %s at /", webDir)
+	} else {
+		log.Printf("Web UI:     not found (set WEB_STATIC_DIR or place web/ next to backend)")
+	}
+
 	addr := ":" + cfg.ServerPort
 	log.Printf("Personal Assistant backend starting on %s", addr)
 	log.Printf("Auth:        POST /api/v1/auth/send-code , POST /api/v1/auth/login (JWT)")
@@ -89,6 +100,52 @@ func main() {
 	if err := http.ListenAndServe(addr, corsMiddleware(mux)); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func resolveWebDir() string {
+	if d := os.Getenv("WEB_STATIC_DIR"); d != "" {
+		if st, err := os.Stat(d); err == nil && st.IsDir() {
+			return d
+		}
+		log.Printf("WEB_STATIC_DIR=%s not usable", d)
+		return ""
+	}
+	candidates := []string{
+		"../web",
+		"../../web",
+		"web",
+	}
+	if wd, err := os.Getwd(); err == nil {
+		candidates = append([]string{
+			filepath.Join(wd, "../web"),
+			filepath.Join(wd, "../../web"),
+			filepath.Join(wd, "web"),
+		}, candidates...)
+	}
+	for _, c := range candidates {
+		if st, err := os.Stat(c); err == nil && st.IsDir() {
+			abs, _ := filepath.Abs(c)
+			return abs
+		}
+	}
+	return ""
+}
+
+// spaFallback：API 以外的路径回退到 index.html（便于以后扩展路由）
+func spaFallback(webDir string, fs http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+			http.ServeFile(w, r, filepath.Join(webDir, "index.html"))
+			return
+		}
+		// 已有文件则静态服务
+		path := filepath.Join(webDir, filepath.Clean("/"+r.URL.Path))
+		if st, err := os.Stat(path); err == nil && !st.IsDir() {
+			fs.ServeHTTP(w, r)
+			return
+		}
+		http.ServeFile(w, r, filepath.Join(webDir, "index.html"))
+	})
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

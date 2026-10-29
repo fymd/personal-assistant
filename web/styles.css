@@ -1,0 +1,166 @@
+:root {
+  --bg: #ffffff;
+  --surface: #f7f6f3;
+  --text: #37352f;
+  --muted: #787774;
+  --border: #e3e2de;
+  --primary: #2383e2;
+  --primary-fg: #fff;
+  --danger: #e03e3e;
+  --radius: 8px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", sans-serif;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+.hidden { display: none !important; }
+.muted { color: var(--muted); font-size: 13px; }
+.hint { margin-top: 16px; line-height: 1.4; }
+
+.view { min-height: 100vh; }
+.card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 400px;
+}
+.login-card {
+  margin: 10vh auto;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+}
+h1 { font-size: 22px; margin: 0 0 4px; font-weight: 650; }
+label { display: block; font-size: 13px; margin: 14px 0 6px; color: var(--muted); }
+input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 15px;
+  background: var(--bg);
+  color: var(--text);
+}
+input:focus { outline: 2px solid rgba(35,131,226,0.35); border-color: var(--primary); }
+.row { display: flex; gap: 8px; align-items: center; }
+.row.end { justify-content: flex-end; margin-top: 16px; }
+.row input { flex: 1; }
+
+.btn {
+  border: none;
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn.primary { background: var(--primary); color: var(--primary-fg); }
+.btn.secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.btn.sm { padding: 6px 12px; font-size: 13px; }
+.btn.block { width: 100%; margin-top: 18px; }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.msg { min-height: 1.2em; font-size: 13px; margin: 10px 0 0; color: var(--danger); }
+.msg.ok { color: #0f7b6c; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.brand { font-weight: 650; font-size: 16px; }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.badge {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.badge.pro { background: #eef5fc; color: var(--primary); border-color: #c5ddf5; }
+
+.container { max-width: 720px; margin: 0 auto; padding: 20px 16px 48px; }
+.toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 12px; flex-wrap: wrap; }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--muted);
+}
+.chip.active { background: var(--surface); color: var(--text); border-color: #cfcbc4; font-weight: 600; }
+
+.create-box {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.create-box input { flex: 1; }
+
+.memo-list { list-style: none; padding: 0; margin: 0; }
+.memo-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  background: var(--bg);
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.memo-item.done .title { text-decoration: line-through; color: var(--muted); }
+.memo-item .check {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+.memo-item .body { flex: 1; min-width: 0; }
+.memo-item .title { font-weight: 600; font-size: 15px; }
+.memo-item .meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.memo-item .content {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.fab {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  cursor: pointer;
+  font-size: 18px;
+}
+dialog {
+  border: none;
+  border-radius: 12px;
+  padding: 0;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+}
+dialog::backdrop { background: rgba(0,0,0,0.35); }
+dialog .card { margin: 0; max-width: 360px; }

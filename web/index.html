@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Personal Assistant · Web</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- 登录 -->
+    <section id="view-login" class="view">
+      <div class="card login-card">
+        <h1>Personal Assistant</h1>
+        <p class="muted">Web 端简单查看 · 手机号登录</p>
+        <label>手机号</label>
+        <input id="phone" type="tel" placeholder="13800138000" autocomplete="tel" />
+        <label>验证码</label>
+        <div class="row">
+          <input id="code" type="text" placeholder="开发环境默认 123456" />
+          <button type="button" id="btn-send" class="btn secondary">获取验证码</button>
+        </div>
+        <button type="button" id="btn-login" class="btn primary block">登录</button>
+        <p id="login-msg" class="msg"></p>
+        <p class="hint muted">API 地址可在右下角设置。默认与当前站点同源，或使用 http://127.0.0.1:8080</p>
+      </div>
+    </section>
+
+    <!-- 主界面 -->
+    <section id="view-main" class="view hidden">
+      <header class="topbar">
+        <div class="brand">备忘录</div>
+        <div class="topbar-right">
+          <span id="user-phone" class="muted"></span>
+          <span id="member-badge" class="badge"></span>
+          <button type="button" id="btn-logout" class="btn secondary sm">退出</button>
+        </div>
+      </header>
+
+      <main class="container">
+        <div class="toolbar">
+          <div class="filters">
+            <button type="button" class="chip active" data-filter="all">全部</button>
+            <button type="button" class="chip" data-filter="uncompleted">未完成</button>
+            <button type="button" class="chip" data-filter="completed">已完成</button>
+            <button type="button" class="chip" data-filter="starred">星标</button>
+          </div>
+          <button type="button" id="btn-refresh" class="btn secondary sm">刷新</button>
+        </div>
+
+        <form id="form-create" class="create-box">
+          <input id="new-title" placeholder="新建备忘录标题…" required />
+          <button type="submit" class="btn primary sm">添加</button>
+        </form>
+
+        <p id="list-msg" class="msg"></p>
+        <ul id="memo-list" class="memo-list"></ul>
+      </main>
+    </section>
+
+    <button type="button" id="btn-settings" class="fab" title="API 设置">⚙</button>
+    <dialog id="dlg-settings">
+      <form method="dialog" class="card">
+        <h3>API 设置</h3>
+        <label>Backend Base URL</label>
+        <input id="api-base" type="url" placeholder="http://127.0.0.1:8080" />
+        <div class="row end">
+          <button type="submit" class="btn primary">保存</button>
+        </div>
+      </form>
+    </dialog>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
