@@ -58,12 +58,14 @@ class MemoRepository {
     String? content,
     String? tag,
     bool? starred,
+    bool? completed,
   }) async {
     final body = <String, dynamic>{};
     if (title != null) body['title'] = title;
     if (content != null) body['content'] = content;
     if (tag != null) body['tag'] = tag;
     if (starred != null) body['starred'] = starred;
+    if (completed != null) body['completed'] = completed;
     final res = await _client.put('/api/v1/memos/$id', data: body);
     if (res['code'] != 0) {
       throw Exception(res['message'] ?? '更新失败');
