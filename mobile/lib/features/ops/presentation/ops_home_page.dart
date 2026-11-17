@@ -6,6 +6,8 @@ import 'dns_lookup_page.dart';
 import 'http_check_page.dart';
 import 'network_diag_page.dart';
 import 'ops_history_page.dart';
+import 'ops_inspect_page.dart';
+import 'ops_favorites_page.dart';
 import 'ping_page.dart';
 import 'port_scan_page.dart';
 import 'remote_desktop_page.dart';
@@ -85,6 +87,24 @@ class OpsHomePage extends ConsumerWidget {
         ),
       ),
       _ToolItem(
+        icon: Icons.playlist_add_check_circle_outlined,
+        title: '巡检模板',
+        subtitle: '一键批量 Ping / 端口 / HTTP',
+        color: colors.tagOrange,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const OpsInspectPage()),
+        ),
+      ),
+      _ToolItem(
+        icon: Icons.star_outline,
+        title: '收藏目标',
+        subtitle: '常用主机快捷填充',
+        color: colors.tagGray,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const OpsFavoritesPage()),
+        ),
+      ),
+      _ToolItem(
         icon: Icons.history,
         title: '运维历史',
         subtitle: '云端同步的探测记录',
@@ -108,7 +128,7 @@ class OpsHomePage extends ConsumerWidget {
       backgroundColor: colors.background,
       appBar: AppBar(title: const Text('运维工具')),
       body: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        padding: const EdgeInsets.all(16),
         itemCount: tools.length,
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (context, i) {
