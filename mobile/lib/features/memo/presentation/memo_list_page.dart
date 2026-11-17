@@ -132,7 +132,7 @@ class MemoListPage extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showCreateDialog(context, ref, colors),
+        onPressed: () => _createAndOpen(context, ref),
         backgroundColor: colors.primary,
         foregroundColor: colors.onPrimary,
         elevation: 2,
@@ -156,80 +156,23 @@ class MemoListPage extends ConsumerWidget {
     );
   }
 
-  void _showCreateDialog(
-      BuildContext context, WidgetRef ref, AppColors colors) {
-    final titleCtrl = TextEditingController();
-    String selectedTag = '工作';
-    final tags = ['工作', '灵感', '学习', '生活'];
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text('新建备忘录',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: titleCtrl,
-                    autofocus: true,
-                    decoration: const InputDecoration(hintText: '输入标题…'),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    children: tags.map((t) {
-                      final selected = t == selectedTag;
-                      return ChoiceChip(
-                        label: Text(t),
-                        selected: selected,
-                        onSelected: (_) =>
-                            setModalState(() => selectedTag = t),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () async {
-                      if (titleCtrl.text.trim().isEmpty) return;
-                      try {
-                        await ref.read(memoListProvider.notifier).create(
-                              title: titleCtrl.text.trim(),
-                              tag: selectedTag,
-                            );
-                        if (ctx.mounted) Navigator.pop(ctx);
-                      } catch (e) {
-                        if (ctx.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('创建失败：$e')),
-                          );
-                        }
-                      }
-                    },
-                    child: const Text('创建'),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
+  /// 一键新建空白备忘录并进入编辑页（Apple Notes 体验）。
+  Future<void> _createAndOpen(BuildContext context, WidgetRef ref) async {
+    try {
+      final memo = await ref.read(memoListProvider.notifier).create(
+            title: '无标题',
+            tag: '工作',
+          );
+      if (!context.mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => MemoDetailPage(memo: memo)),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('创建失败：$e')),
+      );
+    }
   }
 
   void _confirmDelete(BuildContext context, WidgetRef ref, Memo memo) {
