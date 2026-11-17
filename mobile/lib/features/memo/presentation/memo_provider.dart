@@ -72,12 +72,19 @@ class MemoListNotifier extends StateNotifier<AsyncValue<List<Memo>>> {
     }
   }
 
-  Future<void> create({required String title, String tag = ''}) async {
-    if (_repo == null) return;
+  Future<Memo> create({
+    String title = '无标题',
+    String content = '',
+    String tag = '工作',
+  }) async {
+    if (_repo == null) {
+      throw Exception('未登录');
+    }
     try {
-      final memo = await _repo!.create(title: title, tag: tag);
+      final memo = await _repo!.create(title: title, content: content, tag: tag);
       final current = state.valueOrNull ?? [];
       state = AsyncValue.data([memo, ...current]);
+      return memo;
     } catch (e, st) {
       state = AsyncValue.error(e, st);
       rethrow;
@@ -94,20 +101,15 @@ class MemoListNotifier extends StateNotifier<AsyncValue<List<Memo>>> {
   }) async {
     if (_repo == null) return;
     try {
-      // 先更新字段
-      var updated = await _repo!.update(
+      final updated = await _repo!.update(
         id,
         title: title,
         content: content,
         tag: tag,
         starred: starred,
+        completed: completed,
       );
-      // 完成状态单独接口
       final current = state.valueOrNull ?? [];
-      final existing = current.where((m) => m.id == id).firstOrNull;
-      if (completed != null && existing != null && existing.completed != completed) {
-        updated = await _repo!.toggleComplete(id);
-      }
       state = AsyncValue.data([
         for (final m in current)
           if (m.id == id) updated else m,
