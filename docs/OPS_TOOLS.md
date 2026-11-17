@@ -21,20 +21,26 @@
 |------|------|
 | 运维历史上云 | `ops_tool_history` 表；`GET/POST/DELETE /api/v1/ops/history` |
 | HTTP 探测 | GET/HEAD 状态码与耗时；可同步历史 |
-| 历史页 | App 内查看/删除云端记录 |
+| 历史页 | App 内查看/删除云端记录；按工具筛选 |
 
-端口扫描完成后可「同步到运维历史」（登录后）。
+**可同步历史的工具**：`ping` · `port_scan` · `dns` · `http_check` · `network_diag` · `inspect`
 
-### 历史上传示例
+### detail JSON schema（version = 1）
 
-```json
-POST /api/v1/ops/history
-{
-  "tool": "port_scan",
-  "target": "192.168.1.1",
-  "summary": "开放 3/8",
-  "detail": "{...}"
-}
-```
+见仓库 `OpsHistoryDetail`；含 ping / port_scan / dns / http_check / network_diag / inspect。
 
-`tool` 建议值：`port_scan` | `network_diag` | `http_check` | `ping` | `dns`
+## 巡检模板（本地）
+
+一键对固定主机批量执行 DNS / TCP Ping / 端口 / HTTP，结果可同步（`tool=inspect`）。
+
+- 存储：`SharedPreferences`（`ops_inspect_templates_v1`）
+- 入口：运维首页 → 巡检模板
+- 限制：端口 ≤32、HTTP URL ≤16
+
+## 收藏目标（本地）
+
+常用主机快捷填充，存于 `SharedPreferences`（`ops_favorite_targets_v1`）。
+
+- 运维首页 → **收藏目标** 管理
+- 各探测页主机输入下方芯片条：「收藏当前」/「管理」
+- 最多 50 条；选择后自动 touch 排序
